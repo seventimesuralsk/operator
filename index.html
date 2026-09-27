@@ -61,6 +61,8 @@ button{font:inherit;color:inherit;border:none;background:none;cursor:pointer;pad
 .r-name{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .r-time{font-size:.78rem;color:var(--sub);flex-shrink:0}
 .r-sub{flex:1;min-width:0;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.lg{font-size:.68rem;font-weight:700;padding:1px 5px;border-radius:5px;background:rgba(51,144,236,.14);color:var(--acc);flex-shrink:0;letter-spacing:.3px}
+.row.sel .lg{background:rgba(255,255,255,.25);color:#fff}
 .badge{min-width:22px;height:22px;border-radius:11px;background:var(--badgeon);color:#fff;font-size:.78rem;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 7px;flex-shrink:0}
 .row.sel .badge{background:#fff;color:var(--sel)}
 .empty{color:var(--sub);text-align:center;padding:40px 20px;line-height:1.5}
@@ -207,6 +209,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
   var API = "https://script.google.com/macros/s/AKfycbzSeFJV6S5KzMw8M6FCKELl5ztQwJDm3XRJrGrQfkMJBwmqZdFevqa458O-1zKYne-oBg/exec";
   var REACTS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "👏"];
   var BR = { samal: "Самал 70/3", skoro: "Скоробогатова 65/1", abulhair: "Абулхаир Хана 177" };
+  var LANG = { kz: "Қазақша", ru: "Русский" }, LANG_SHORT = { kz: "KZ", ru: "RU" };
   var COLORS = ["#e17076", "#faa774", "#a695e7", "#7bc862", "#6ec9cb", "#65aadd", "#ee7aae"];
   var TICK1 = '<svg viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 6l3 3 6.5-7.5"/></svg>';
   var TICK2 = '<svg viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6l3 3 6.5-7.5"/><path d="M6.5 8.6l.9.9L14 2"/></svg>';
@@ -369,7 +372,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     else html = arr.map(function (c) {
       return '<div class="row' + (c.cid === cur ? " sel" : "") + '" data-cid="' + esc(c.cid) + '">' +
         '<div class="ava" style="background:' + color(c.n) + '">' + esc(c.n || "?") + (online(c) ? '<span class="dot"></span>' : "") + "</div>" +
-        '<div class="r-main"><div class="r-top"><span class="r-name">' + esc(title(c)) + '</span><span class="r-time">' + listTime(c.ts) + "</span></div>" +
+        '<div class="r-main"><div class="r-top"><span class="r-name">' + esc(title(c)) + '</span>' + (c.lang ? '<span class="lg" title="' + esc(LANG[c.lang] || "") + '">' + esc(LANG_SHORT[c.lang] || "") + "</span>" : "") + '<span class="r-time">' + listTime(c.ts) + "</span></div>" +
         '<div class="r-bot"><span class="r-sub">' + esc(c.last) + "</span>" + (c.un ? '<span class="badge">' + c.un + "</span>" : "") + "</div></div></div>";
     }).join("");
     // перерисовываем только если что-то изменилось (не сбиваем клик и наведение)
@@ -412,6 +415,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     var sub = $("hSub"), parts = [];
     if (online(c)) { sub.className = "on"; parts.push("в сети"); }
     else { sub.className = ""; if (c && c.on) parts.push("был(а) в " + hm(c.on)); }
+    if (c && c.lang) parts.push("язык: " + (LANG[c.lang] || c.lang));
     if (c && c.br) parts.push(BR[c.br] || c.br);
     sub.textContent = parts.join(" · ") || "гость сайта";
   }
