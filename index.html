@@ -146,6 +146,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
 #menu .it{display:flex;align-items:center;gap:14px;width:100%;padding:11px 16px;text-align:left}
 #menu .it:hover{background:var(--hover)}
 #menu .it svg{color:var(--sub)}
+#menu .it.danger,#menu .it.danger svg{color:var(--danger)}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:9px 16px;border-radius:10px;font-size:.9rem;z-index:60;pointer-events:none}
 @media (max-width:760px){
   .app{grid-template-columns:1fr}
@@ -187,6 +188,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
       <button class="ic back" id="back" aria-label="Назад"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
       <div class="ava sm" id="hAva"></div>
       <div class="t"><b id="hName"></b><small id="hSub"></small></div>
+      <button class="ic" id="delChat" title="Удалить чат" aria-label="Удалить чат"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg></button>
       <button class="ic" id="copyId" title="Скопировать ID гостя" aria-label="Скопировать ID"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
     </div>
     <div class="msgs hidden" id="msgs"><div class="wrap" id="wrap"></div></div>
@@ -338,9 +340,12 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     return api({ action: "opPanel", cid: reqCid }, 25000).then(function (r) { if (r && r.ok) handle(r, reqCid); }).catch(function () {});
   }
 
+  var hidden = {};
+  try { hidden = JSON.parse(localStorage.getItem("op_hidden") || "{}") || {}; } catch (e) { hidden = {}; }
+  function visibleChats(list) { return (list || []).filter(function (c) { return !(hidden[c.cid] && c.ts <= hidden[c.cid]); }); }
   function handle(r, reqCid) {
     if (r.ver) ver = Math.max(ver, r.ver);
-    chats = r.chats || [];
+    chats = visibleChats(r.chats);
     var un = chats.reduce(function (a, c) { return a + (c.un || 0); }, 0);
     if (lastUnread >= 0 && un > lastUnread) notify();
     lastUnread = un;
@@ -404,6 +409,42 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     if (box._html !== html) { box._html = html; box.innerHTML = html; }
   }
   $("list").onclick = function (e) { var r = e.target.closest(".row"); if (r) open(r.getAttribute("data-cid")); };
+  // удалить чат: правый клик / долгое нажатие по чату в списке, или корзина в шапке
+  var rowPress = 0, rowPressed = false;
+  $("list").addEventListener("contextmenu", function (e) { var r = e.target.closest(".row"); if (!r) return; e.preventDefault(); chatMenu(r.getAttribute("data-cid"), e.clientX, e.clientY); });
+  $("list").addEventListener("touchstart", function (e) {
+    var r = e.target.closest(".row"); if (!r) return;
+    var t = e.touches[0]; clearTimeout(rowPress); rowPressed = false;
+    rowPress = setTimeout(function () { rowPressed = true; if (navigator.vibrate) navigator.vibrate(10); chatMenu(r.getAttribute("data-cid"), t.clientX, t.clientY); }, 500);
+  }, { passive: true });
+  ["touchend", "touchmove", "touchcancel"].forEach(function (n) { $("list").addEventListener(n, function (e) { clearTimeout(rowPress); if (n === "touchend" && rowPressed) { e.preventDefault(); rowPressed = false; } }); });
+  function chatMenu(cid, x, y) {
+    closeMenu();
+    var ov = D.createElement("div"); ov.id = "menu";
+    var card = D.createElement("div"); card.className = "card";
+    card.innerHTML = '<button class="it danger" data-a="del"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg>Удалить чат</button>';
+    ov.appendChild(card); D.body.appendChild(ov);
+    card.style.left = Math.max(8, Math.min(x, innerWidth - card.offsetWidth - 8)) + "px";
+    card.style.top = Math.max(8, Math.min(y, innerHeight - card.offsetHeight - 8)) + "px";
+    ov.onclick = function (e) { var a = e.target.closest("[data-a]"); closeMenu(); if (a) deleteChat(cid); };
+  }
+  function deleteChat(cid) {
+    var c = chatBy(cid);
+    if (!confirm("Удалить чат с «" + (c ? title(c) : "гостем") + "»?\nИстория останется в Telegram. Если гость напишет снова — чат появится заново.")) return;
+    hidden[cid] = c ? c.ts : Date.now();
+    try { localStorage.setItem("op_hidden", JSON.stringify(hidden)); } catch (e) {}
+    chats = chats.filter(function (x) { return x.cid !== cid; });
+    delete threads[cid];
+    if (cur === cid) {
+      cur = null; thread = []; closeReply(); stopPlayer();
+      $("app").classList.remove("open");
+      ["head", "msgs", "comp"].forEach(function (id) { $(id).classList.add("hidden"); });
+      $("noChat").classList.remove("hidden"); $("wrap").innerHTML = ""; $("wrap")._html = "";
+      history.replaceState(null, "", location.pathname);
+    }
+    renderList(); saveCache();
+    api({ action: "opPanelDelete", cid: cid }).then(function (r) { if (r && r.ok) toast("Чат удалён"); }).catch(function () {});
+  }
   $("q").oninput = function () { filter = this.value.trim(); renderList(); };
 
   function open(cid, fromHash) {
@@ -427,6 +468,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     api({ action: "opPanelRead", cid: cid }).catch(function () {});
   }
   $("back").onclick = function () { $("app").classList.remove("open"); cur = null; history.replaceState(null, "", location.pathname); renderList(); };
+  $("delChat").onclick = function () { if (cur) deleteChat(cur); };
   $("copyId").onclick = function () {
     if (!cur) return;
     (navigator.clipboard ? navigator.clipboard.writeText(cur) : Promise.reject()).then(function () { toast("ID гостя скопирован"); }, function () { prompt("ID гостя:", cur); });
@@ -634,7 +676,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     var cached = loadCache();
     if (cached) {
       $("login").classList.add("hidden"); $("app").classList.remove("hidden");
-      chats = cached.chats || [];
+      chats = visibleChats(cached.chats);
       if (cached.cur && cached.thread) { threads[cached.cur] = cached.thread; }
       renderList();
     }
