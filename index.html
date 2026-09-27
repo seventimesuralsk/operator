@@ -61,6 +61,8 @@ button{font:inherit;color:inherit;border:none;background:none;cursor:pointer;pad
 .r-name{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .r-time{font-size:.78rem;color:var(--sub);flex-shrink:0}
 .r-sub{flex:1;min-width:0;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.lg{font-size:.68rem;font-weight:700;padding:1px 5px;border-radius:5px;background:rgba(51,144,236,.14);color:var(--acc);flex-shrink:0;letter-spacing:.3px}
+.row.sel .lg{background:rgba(255,255,255,.25);color:#fff}
 .badge{min-width:22px;height:22px;border-radius:11px;background:var(--badgeon);color:#fff;font-size:.78rem;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 7px;flex-shrink:0}
 .row.sel .badge{background:#fff;color:var(--sel)}
 .empty{color:var(--sub);text-align:center;padding:40px 20px;line-height:1.5}
@@ -204,9 +206,10 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
 <script>
 (function () {
   "use strict";
-  var API = "https://script.google.com/macros/s/AKfycbzSeFJV6S5KzMw8M6FCKELl5ztQwJDm3XRJrGrQfkMJBwmqZdFevqa458O-1zKYne-oBg/exec";
+  var API = "https://script.google.com/macros/s/AKfycbxbIFtgzUfabjq943X731hpdgX__-NK_f8NkVVHzqDePiIEi5_fqRLT99N6kTllyC6nyw/exec";
   var REACTS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "👏"];
   var BR = { samal: "Самал 70/3", skoro: "Скоробогатова 65/1", abulhair: "Абулхаир Хана 177" };
+  var LANG = { kz: "Қазақша", ru: "Русский" }, LANG_SHORT = { kz: "KZ", ru: "RU" };
   var COLORS = ["#e17076", "#faa774", "#a695e7", "#7bc862", "#6ec9cb", "#65aadd", "#ee7aae"];
   var TICK1 = '<svg viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 6l3 3 6.5-7.5"/></svg>';
   var TICK2 = '<svg viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6l3 3 6.5-7.5"/><path d="M6.5 8.6l.9.9L14 2"/></svg>';
@@ -236,14 +239,34 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
   function toast(t) { var e = D.createElement("div"); e.className = "toast"; e.textContent = t; D.body.appendChild(e); setTimeout(function () { e.remove(); }, 2200); }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-  function api(body, ms) {
+  var pollCtl = null;
+  function api(body, ms, isPoll) {
     var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    if (isPoll) pollCtl = ctl;
     var t = ctl ? setTimeout(function () { ctl.abort(); }, ms || 20000) : 0;
     body.code = code;
-    return fetch(API, { method: "POST", body: JSON.stringify(body), signal: ctl ? ctl.signal : undefined })
-      .then(function (r) { return r.json(); })
-      .finally(function () { clearTimeout(t); });
+    return fetch(API, { method: "POST", body: JSON.stringify(body), signal: ctl ? ctl.signal : undefined, cache: "no-store" })
+      .then(function (r) { return r.json(); }) // страница ошибки Google (не JSON) → повтор, как при обрыве
+      .finally(function () { clearTimeout(t); if (isPoll && pollCtl === ctl) pollCtl = null; });
   }
+  // ── пауза между попытками, которую можно прервать: вернулся в приложение / появился интернет
+  var wakeFn = null, lastOkAt = 0;
+  function nap(ms) { return new Promise(function (res) { var t = setTimeout(done, ms); function done() { clearTimeout(t); wakeFn = null; res(); } wakeFn = done; }); }
+  function wakeUp() {
+    if (wakeFn) wakeFn();
+    // телефон спал / вкладка была свёрнута — висящий запрос мог умереть: начинаем новый сразу
+    if (pollCtl && Date.now() - lastOkAt > 25000) { try { pollCtl.abort(); } catch (e) {} }
+  }
+  window.addEventListener("online", wakeUp);
+  window.addEventListener("focus", wakeUp);
+  window.addEventListener("pageshow", wakeUp);
+  // ── последнее состояние на телефоне: панель открывается сразу, свежие данные — следом
+  var saveT = 0;
+  function saveCache() {
+    clearTimeout(saveT);
+    saveT = setTimeout(function () { try { var o = { chats: chats, t: Date.now() }; if (cur && thread.length) { o.cur = cur; o.thread = thread.slice(-60); } localStorage.setItem("op_cache", JSON.stringify(o)); } catch (e) {} }, 800);
+  }
+  function loadCache() { try { var o = JSON.parse(localStorage.getItem("op_cache") || "null"); if (o && Date.now() - o.t < 6 * 3600e3) return o; } catch (e) {} return null; }
 
   // ── вход
   function showLogin(msg) {
@@ -267,13 +290,13 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
   };
   $("menuBtn").onclick = function () {
     if (!confirm("Выйти из панели оператора?")) return;
-    var t = code; ls("op_token", null); code = ""; loopId++;
+    var t = code; logoutLocal(); loopId++;
     fetch(API, { method: "POST", body: JSON.stringify({ action: "adminLogout", code: t }) }).finally(function () { location.reload(); });
   };
 
   function start(first) {
     $("login").classList.add("hidden"); $("app").classList.remove("hidden");
-    if (first) handle(first, null);
+    if (first) { lastOkAt = Date.now(); conn(true, first.tg); handle(first, null); }
     var h = location.hash.replace(/^#/, "");
     if (h) open(decodeURIComponent(h), true);
     loop();
@@ -285,25 +308,29 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     (async function () {
       var fails = 0;
       while (my === loopId && code) {
-        var reqCid = cur, sentAt = Date.now(), v0 = ver;
-        try {
-          var r = await api({ action: "opPanel", since: ver, wait: ver ? 1 : 0, cid: reqCid }, 45000);
-          if (my !== loopId) return;
-          if (r && r.auth === false) { ls("op_token", null); code = ""; return showLogin("Вход истёк — войдите снова"); }
-          if (r && r.ok) {
-            fails = 0; conn(true, r.tg); handle(r, reqCid);
-            // сервер не смог подождать (занято) — не долбим его по кругу
-            if (v0 && ver === v0 && Date.now() - sentAt < 1200) await sleep(1500);
-          }
-          else { fails++; conn(false); await sleep(2000); }
-        } catch (e) { fails++; conn(false); await sleep(Math.min(8000, 1500 * fails)); }
+        var reqCid = cur, sentAt = Date.now(), v0 = ver, r = null;
+        try { r = await api({ action: "opPanel", since: ver, wait: ver ? 1 : 0, cid: reqCid }, 45000, true); } catch (e) { r = null; }
+        if (my !== loopId) return;
+        if (r && r.auth === false) { logoutLocal(); return showLogin("Вход истёк — войдите снова"); }
+        if (r && r.ok) {
+          fails = 0; lastOkAt = Date.now(); conn(true, r.tg); handle(r, reqCid);
+          // сервер не смог подождать (занято) — не долбим его по кругу
+          if (v0 && ver === v0 && Date.now() - sentAt < 1200) await nap(1500);
+          continue;
+        }
+        // один сорвавшийся запрос (телефон уснул, сбой Google) — не «нет связи»: сразу повторяем.
+        // Надпись — только если не получается несколько раз подряд или интернета правда нет.
+        fails++;
+        if (fails >= 3 || navigator.onLine === false) conn(false);
+        await nap(navigator.onLine === false ? 15000 : fails === 1 ? 200 : Math.min(4000, 600 * fails));
       }
     })();
   }
+  function logoutLocal() { ls("op_token", null); ls("op_cache", null); code = ""; }
   function conn(ok, tg) {
     var c = $("conn");
     c.className = "conn" + (ok ? "" : " bad");
-    c.textContent = ok ? (tg === false ? "Онлайн · Telegram-бот не подключён" : "Онлайн · синхронно с Telegram") : "Нет связи — переподключаемся…";
+    c.textContent = ok ? (tg === false ? "Онлайн · Telegram-бот не подключён" : "Онлайн · синхронно с Telegram") : (navigator.onLine === false ? "Нет интернета — ждём…" : "Нет связи — переподключаемся…");
   }
   function refresh() {
     // мгновенно подтянуть открытый чат (не дожидаясь «длинного» запроса)
@@ -333,6 +360,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     }
     renderList();
     renderHead();
+    saveCache();
   }
   function chatBy(cid) { return chats.filter(function (c) { return c.cid === cid; })[0] || null; }
 
@@ -369,7 +397,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     else html = arr.map(function (c) {
       return '<div class="row' + (c.cid === cur ? " sel" : "") + '" data-cid="' + esc(c.cid) + '">' +
         '<div class="ava" style="background:' + color(c.n) + '">' + esc(c.n || "?") + (online(c) ? '<span class="dot"></span>' : "") + "</div>" +
-        '<div class="r-main"><div class="r-top"><span class="r-name">' + esc(title(c)) + '</span><span class="r-time">' + listTime(c.ts) + "</span></div>" +
+        '<div class="r-main"><div class="r-top"><span class="r-name">' + esc(title(c)) + '</span>' + (c.lang ? '<span class="lg" title="' + esc(LANG[c.lang] || "") + '">' + esc(LANG_SHORT[c.lang] || "") + "</span>" : "") + '<span class="r-time">' + listTime(c.ts) + "</span></div>" +
         '<div class="r-bot"><span class="r-sub">' + esc(c.last) + "</span>" + (c.un ? '<span class="badge">' + c.un + "</span>" : "") + "</div></div></div>";
     }).join("");
     // перерисовываем только если что-то изменилось (не сбиваем клик и наведение)
@@ -412,6 +440,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     var sub = $("hSub"), parts = [];
     if (online(c)) { sub.className = "on"; parts.push("в сети"); }
     else { sub.className = ""; if (c && c.on) parts.push("был(а) в " + hm(c.on)); }
+    if (c && c.lang) parts.push("язык: " + (LANG[c.lang] || c.lang));
     if (c && c.br) parts.push(BR[c.br] || c.br);
     sub.textContent = parts.join(" · ") || "гость сайта";
   }
@@ -580,22 +609,39 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     deliver(p);
   }
   function deliver(p) {
-    api({ action: "opPanelSend", cid: p.cid, text: p.t, replyId: p.replyId }, 25000).then(function (r) {
+    api({ action: "opPanelSend", cid: p.cid, text: p.t, replyId: p.replyId, cmid: p.id }, 25000).then(function (r) {
       if (!r || !r.ok) throw new Error("fail");
       pending = pending.filter(function (x) { return x !== p; });
       if (p.cid === cur && r.item && !thread.some(function (x) { return x.id === r.item.id; })) thread.push(r.item);
       renderThread();
-    }).catch(function () { p.pending = false; p.failed = true; renderThread(); });
+    }).catch(function () {
+      // один сбой — тихо повторяем, и только потом «Не отправлено»
+      p.tries = (p.tries || 0) + 1;
+      if (p.tries < 3) return setTimeout(function () { deliver(p); }, 400 * p.tries);
+      p.pending = false; p.failed = true; p.tries = 0; renderThread();
+    });
   }
 
-  D.addEventListener("visibilitychange", function () { if (D.visibilityState === "visible" && cur) { var c = chatBy(cur); if (c && c.un) markRead(cur); } });
+  D.addEventListener("visibilitychange", function () {
+    if (D.visibilityState !== "visible") return;
+    wakeUp();
+    if (cur) { var c = chatBy(cur); if (c && c.un) markRead(cur); }
+  });
   setInterval(function () { renderHead(); renderList(); }, 30000);
 
   if (code) {
-    $("conn").textContent = "Подключение…";
+    // сразу показываем то, что было при прошлом входе, — без ожидания Google
+    var cached = loadCache();
+    if (cached) {
+      $("login").classList.add("hidden"); $("app").classList.remove("hidden");
+      chats = cached.chats || [];
+      if (cached.cur && cached.thread) { threads[cached.cur] = cached.thread; }
+      renderList();
+    }
+    $("conn").textContent = "Обновляем…";
     api({ action: "opPanel" }, 25000).then(function (r) {
-      if (!r || r.auth === false) { ls("op_token", null); code = ""; return showLogin("Вход истёк — войдите снова"); }
-      start(r);
+      if (r && r.auth === false) { logoutLocal(); return showLogin("Вход истёк — войдите снова"); }
+      start(r && r.ok ? r : null);
     }).catch(function () { start(null); });
   } else showLogin();
 })();
