@@ -36,7 +36,7 @@ button{font:inherit;color:inherit;border:none;background:none;cursor:pointer;pad
 #login .logo{width:120px;height:120px;border-radius:50%;margin:0 auto 24px;background:#7a1128;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.5rem;letter-spacing:.5px}
 #login h1{font-size:1.6rem;margin:0 0 8px}
 #login p{color:var(--sub);margin:0 0 28px}
-#login input{width:100%;height:54px;border-radius:12px;border:1px solid var(--line);background:var(--field);color:var(--txt);padding:0 16px;font-size:16px;outline:none}
+#login input{width:100%;height:54px;margin-bottom:10px;border-radius:12px;border:1px solid var(--line);background:var(--field);color:var(--txt);padding:0 16px;font-size:16px;outline:none}
 #login input:focus{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
 #login .go{width:100%;height:54px;border-radius:12px;background:var(--acc);color:#fff;font-weight:600;margin-top:16px;text-transform:uppercase;letter-spacing:.3px}
 #login .err{color:var(--danger);min-height:22px;margin-top:10px;font-size:.9rem}
@@ -160,8 +160,10 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
   <form autocomplete="off">
     <div class="logo">SEVEN</div>
     <h1>Оператор SEVEN AI</h1>
-    <p>Введите пароль администратора, чтобы отвечать гостям сайта.</p>
+    <p>Войдите, чтобы отвечать гостям сайта.</p>
+    <input id="user" type="text" placeholder="Логин" autocomplete="username" autocapitalize="none" spellcheck="false" required>
     <input id="pass" type="password" placeholder="Пароль" autocomplete="current-password" required>
+    <input id="secret" type="password" placeholder="Секретное слово" autocomplete="off" autocapitalize="none" spellcheck="false" required>
     <button class="go" type="submit">Войти</button>
     <div class="err" id="lerr"></div>
   </form>
@@ -213,7 +215,8 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
   var PAUSE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
 
   var D = document, $ = function (id) { return D.getElementById(id); };
-  var code = ls("op_code") || "", chats = [], cur = null, thread = [], ver = 0, replyTo = null, pending = [];
+  ls("op_code", null); // старый формат (пароль в браузере) — удаляем
+  var code = ls("op_token") || "", chats = [], cur = null, thread = [], ver = 0, replyTo = null, pending = [];
   var media = {}, player = null, lastUnread = -1, loopId = 0, readSent = {}, filter = "";
   var threads = {}, threadTs = {}; // чаты, которые уже открывали, — показываем мгновенно из памяти
 
@@ -245,21 +248,27 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
   // ── вход
   function showLogin(msg) {
     $("app").classList.add("hidden"); $("login").classList.remove("hidden");
-    $("lerr").textContent = msg || ""; setTimeout(function () { $("pass").focus(); }, 50);
+    $("lerr").textContent = msg || ""; setTimeout(function () { $("user").focus(); }, 50);
   }
   $("login").querySelector("form").onsubmit = function (e) {
     e.preventDefault();
-    var p = $("pass").value.trim();
-    if (!p) return;
-    code = p; $("lerr").textContent = "Проверяем…";
-    api({ action: "opPanel" }, 25000).then(function (r) {
-      if (!r || r.auth === false || !r.ok) { code = ""; return showLogin("Неверный пароль"); }
-      ls("op_code", p); start(r);
-    }).catch(function () { code = ""; showLogin("Нет связи — проверьте интернет"); });
+    var l = $("user").value.trim(), p = $("pass").value.trim(), w = $("secret").value.trim();
+    if (!l || !p || !w) return;
+    $("lerr").textContent = "Проверяем…";
+    fetch(API, { method: "POST", body: JSON.stringify({ action: "adminLogin", login: l, password: p, secret: w }) })
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        $("pass").value = ""; $("secret").value = "";
+        if (!r || r.status !== "success" || !r.token) return showLogin(r && r.msg || "Неверный логин, пароль или секретное слово");
+        // в браузере хранится только временный пропуск, пароль — нигде
+        code = r.token; ls("op_token", code);
+        return api({ action: "opPanel" }, 25000).then(function (x) { start(x); });
+      }).catch(function () { code = ""; showLogin("Нет связи — проверьте интернет"); });
   };
   $("menuBtn").onclick = function () {
     if (!confirm("Выйти из панели оператора?")) return;
-    ls("op_code", null); code = ""; loopId++; location.reload();
+    var t = code; ls("op_token", null); code = ""; loopId++;
+    fetch(API, { method: "POST", body: JSON.stringify({ action: "adminLogout", code: t }) }).finally(function () { location.reload(); });
   };
 
   function start(first) {
@@ -280,7 +289,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
         try {
           var r = await api({ action: "opPanel", since: ver, wait: ver ? 1 : 0, cid: reqCid }, 45000);
           if (my !== loopId) return;
-          if (r && r.auth === false) { ls("op_code", null); code = ""; return showLogin("Сессия истекла — войдите снова"); }
+          if (r && r.auth === false) { ls("op_token", null); code = ""; return showLogin("Вход истёк — войдите снова"); }
           if (r && r.ok) {
             fails = 0; conn(true, r.tg); handle(r, reqCid);
             // сервер не смог подождать (занято) — не долбим его по кругу
@@ -585,7 +594,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
   if (code) {
     $("conn").textContent = "Подключение…";
     api({ action: "opPanel" }, 25000).then(function (r) {
-      if (!r || r.auth === false) { ls("op_code", null); code = ""; return showLogin(); }
+      if (!r || r.auth === false) { ls("op_token", null); code = ""; return showLogin("Вход истёк — войдите снова"); }
       start(r);
     }).catch(function () { start(null); });
   } else showLogin();
