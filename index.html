@@ -7,6 +7,8 @@
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#212121" media="(prefers-color-scheme: dark)">
 <title>SEVEN · Оператор</title>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
 <style>
 :root{
   --side:#fff;--line:#e7e7e7;--txt:#000;--sub:#707579;--acc:#3390ec;--hover:#f4f4f5;--sel:#3390ec;--seltxt:#fff;
@@ -213,6 +215,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
   var D = document, $ = function (id) { return D.getElementById(id); };
   var code = ls("op_code") || "", chats = [], cur = null, thread = [], ver = 0, replyTo = null, pending = [];
   var media = {}, player = null, lastUnread = -1, loopId = 0, readSent = {}, filter = "";
+  var threads = {}, threadTs = {}; // чаты, которые уже открывали, — показываем мгновенно из памяти
 
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
   function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
@@ -273,12 +276,16 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     (async function () {
       var fails = 0;
       while (my === loopId && code) {
-        var reqCid = cur;
+        var reqCid = cur, sentAt = Date.now(), v0 = ver;
         try {
           var r = await api({ action: "opPanel", since: ver, wait: ver ? 1 : 0, cid: reqCid }, 45000);
           if (my !== loopId) return;
           if (r && r.auth === false) { ls("op_code", null); code = ""; return showLogin("Сессия истекла — войдите снова"); }
-          if (r && r.ok) { fails = 0; conn(true, r.tg); handle(r, reqCid); }
+          if (r && r.ok) {
+            fails = 0; conn(true, r.tg); handle(r, reqCid);
+            // сервер не смог подождать (занято) — не долбим его по кругу
+            if (v0 && ver === v0 && Date.now() - sentAt < 1200) await sleep(1500);
+          }
           else { fails++; conn(false); await sleep(2000); }
         } catch (e) { fails++; conn(false); await sleep(Math.min(8000, 1500 * fails)); }
       }
@@ -302,6 +309,12 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     if (lastUnread >= 0 && un > lastUnread) notify();
     lastUnread = un;
     D.title = (un ? "(" + un + ") " : "") + "SEVEN · Оператор";
+    if (reqCid && r.thread) { threads[reqCid] = r.thread; threadTs[reqCid] = (chatBy(reqCid) || {}).ts || 0; }
+    else if (cur && reqCid !== cur) {
+      // «длинный» запрос был за другой чат, а в открытом что-то новое — подтягиваем его
+      var oc = chatBy(cur);
+      if (oc && oc.ts > (threadTs[cur] || 0)) { threadTs[cur] = oc.ts; refresh(); }
+    }
     if (reqCid && reqCid === cur && r.thread) {
       thread = r.thread;
       // гость написал в открытый чат — сразу «прочитано» (у гостя синие галочки)
@@ -357,16 +370,16 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
   $("q").oninput = function () { filter = this.value.trim(); renderList(); };
 
   function open(cid, fromHash) {
-    if (cur !== cid) { thread = []; closeReply(); stopPlayer(); $("wrap").innerHTML = ""; $("wrap")._html = ""; }
+    if (cur !== cid) { thread = threads[cid] || []; closeReply(); stopPlayer(); $("wrap").innerHTML = ""; $("wrap")._html = ""; }
     cur = cid;
     if (!fromHash) history.replaceState(null, "", "#" + encodeURIComponent(cid));
     $("app").classList.add("open");
     ["head", "msgs", "comp"].forEach(function (id) { $(id).classList.remove("hidden"); });
     $("noChat").classList.add("hidden");
     renderList(); renderHead();
+    if (thread.length) { renderThread(); scrollEnd(true); } // из памяти — сразу
     markRead(cid);
     refresh().then(function () { scrollEnd(true); });
-    loop(); // следующий «длинный» запрос уже с этим чатом
     if (window.innerWidth > 760) $("txt").focus();
   }
   function markRead(cid) {
@@ -376,7 +389,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     readSent[cid] = Date.now();
     api({ action: "opPanelRead", cid: cid }).catch(function () {});
   }
-  $("back").onclick = function () { $("app").classList.remove("open"); cur = null; history.replaceState(null, "", location.pathname); renderList(); loop(); };
+  $("back").onclick = function () { $("app").classList.remove("open"); cur = null; history.replaceState(null, "", location.pathname); renderList(); };
   $("copyId").onclick = function () {
     if (!cur) return;
     (navigator.clipboard ? navigator.clipboard.writeText(cur) : Promise.reject()).then(function () { toast("ID гостя скопирован"); }, function () { prompt("ID гостя:", cur); });
