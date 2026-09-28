@@ -659,6 +659,8 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
   }
   function deliver(p) {
     api({ action: "opPanelSend", cid: p.cid, text: p.t, replyId: p.replyId, cmid: p.id }, 25000).then(function (r) {
+      // неизвестная /команда — не отправляем, показываем список команд
+      if (r && r.err === "cmd") { pending = pending.filter(function (x) { return x !== p; }); renderThread(); alert(r.help || "Не знаю такую команду"); return; }
       if (!r || !r.ok) throw new Error("fail");
       pending = pending.filter(function (x) { return x !== p; });
       if (p.cid === cur && r.item && !thread.some(function (x) { return x.id === r.item.id; })) thread.push(r.item);
