@@ -111,6 +111,7 @@ button{font:inherit;color:inherit;border:none;background:none;cursor:pointer;pad
 /* кружочек */
 .m.vn .b{background:none!important;box-shadow:none;padding:0}
 .vn-c{width:240px;height:240px;border-radius:50%;overflow:hidden;position:relative;background:#000;cursor:pointer}
+.pimg{width:260px;max-width:100%;min-height:140px;border-radius:10px;overflow:hidden;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center;color:#8e8e93;font-size:13px;cursor:zoom-in;margin-bottom:4px}.pimg img{display:block;width:100%;height:auto}.pimg.st{width:150px;min-height:150px;background:transparent}
 .vn-c video{width:100%;height:100%;object-fit:cover;display:block}
 .vn-c .pl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
 .vn-c .pl span{width:56px;height:56px;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;display:flex;align-items:center;justify-content:center}
@@ -504,6 +505,13 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
       if (slot && keep[id]) slot.replaceWith(keep[id]);
     });
     if (stick) scrollEnd(true);
+    // фото и стикеры подгружаем сами
+    [].slice.call(wrap.querySelectorAll(".pimg[data-fid]")).forEach(function (b) {
+      var fid = b.getAttribute("data-fid");
+      if (!fid || b.querySelector("img") || b._ld) return;
+      b._ld = 1;
+      loadMedia(fid).then(function (u) { var im = document.createElement("img"); im.alt = ""; im.src = u; b.textContent = ""; b.appendChild(im); wrap._html = ""; }, function () { b.textContent = "Не загрузилось"; });
+    });
   }
   function cssEsc(s) { return String(s).replace(/["\\]/g, "\\$&"); }
   function bubble(it) {
@@ -521,6 +529,8 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
       var tr = String(it.t || "");
       body = '<div class="voice" data-fid="' + esc(it.fid || "") + '"><button class="vplay" aria-label="Слушать">' + PLAY + '</button><div style="flex:1;min-width:0"><div class="vbars">' + bars + '</div><span class="vdur">' + dur(it.dur) + "</span></div></div>" +
         (tr && !/без расшифровки/.test(tr) ? '<div class="vtxt">' + esc(tr) + "</div>" : "");
+    } else if (it.k === "img") {
+      body = '<div class="pimg' + (it.st ? " st" : "") + '" data-fid="' + esc(it.fid || "") + '">' + (media[it.fid] ? '<img alt="" src="' + media[it.fid] + '">' : it.st ? "Стикер" : "📷 Фото") + "</div>" + (it.cap ? esc(it.cap) : "");
     } else body = esc(it.t);
     return '<div class="' + cls + '" data-id="' + esc(it.id) + '"><div class="b">' + q + body + meta + "</div>" + rx(it) +
       (it.failed ? '<div class="failtxt" data-retry="' + esc(it.id) + '">Не отправлено. Нажмите, чтобы повторить</div>' : "") + "</div>";
@@ -552,6 +562,8 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     if (q) { var t = $("wrap").querySelector('.m[data-id="' + cssEsc(q.getAttribute("data-to")) + '"]'); if (t) { t.scrollIntoView({ block: "center", behavior: "smooth" }); t.classList.add("flash"); setTimeout(function () { t.classList.remove("flash"); }, 1200); } return; }
     var rt = e.target.closest("[data-retry]");
     if (rt) { var p = pending.filter(function (x) { return x.id === rt.getAttribute("data-retry"); })[0]; if (p) { p.failed = false; p.pending = true; renderThread(); deliver(p); } return; }
+    var pi = e.target.closest(".pimg img");
+    if (pi) { window.open(pi.src, "_blank"); return; }
     var vn = e.target.closest(".vn-c"), vo = e.target.closest(".voice");
     var box = vn || vo;
     if (!box) return;
