@@ -198,6 +198,16 @@ textarea::placeholder{color:#a1a1a6}
 .act svg{width:22px;height:22px}
 .act.off{color:#c7c7cc;pointer-events:none;box-shadow:none;background:rgba(255,255,255,.6)}
 .gh{font-size:12px;color:var(--sub);font-weight:500;margin:20px 4px 7px;text-transform:uppercase;letter-spacing:.04em}
+.ghx{display:flex;align-items:center;justify-content:space-between}.ghx span{display:flex;gap:12px}
+.lnk{border:none;background:none;padding:0;font:inherit;font-size:13px;text-transform:none;letter-spacing:0;color:var(--acc);cursor:pointer}.lnk.b{font-weight:600}
+.li .v.wrap{white-space:normal;text-align:right;max-width:70%;line-height:1.3}
+.f.two label.s{width:auto;margin-left:6px}.f.two input{width:40px}
+.pedit .f label{width:84px}
+.sugg{background:#fff}.sugg:empty{display:none}
+.sg{padding:9px 14px;border-top:1px solid var(--sep);cursor:pointer;font-size:14px}.sg:hover{background:var(--fill)}
+.sg b{font-weight:500;display:block}.sg small{color:var(--sub);font-size:12px}
+.near{font-size:12px;color:var(--green,#34c759);padding:0 14px 10px;background:#fff}
+.near.far{color:var(--sub)}
 .grp{background:#fff;border-radius:12px;overflow:hidden;box-shadow:var(--sh1)}
 .li{display:flex;align-items:center;gap:10px;padding:11px 14px;font-size:14px;border-top:1px solid var(--sep)}
 .li:first-child{border-top:none}
@@ -735,9 +745,52 @@ textarea::placeholder{color:#a1a1a6}
   try { hidden = JSON.parse(localStorage.getItem("op_hidden") || "{}") || {}; } catch (e) { hidden = {}; }
   function visibleChats(list) { return (list || []).filter(function (c) { return !(hidden[c.cid] && c.ts <= hidden[c.cid]); }); }
   var gx = {}; // по открытому чату: корзина, профиль и живые действия гостя
+  var prof = {}, profSaving = {}, profEdit = {}; // профиль гостя, который заполнил оператор (хранится в скрипте)
+  try { prof = JSON.parse(localStorage.getItem("op_prof") || "{}") || {}; } catch (e) { prof = {}; }
+  // филиалы, которые принимают заказы и брони (Абулхаир — нет)
+  var BR_OK = [["samal", "Самал 70/3"], ["skoro", "Скоробогатова 65/1"]];
+  var BR_XY = { samal: [51.262822, 51.460272], skoro: [51.217804, 51.381346] };
+  function km(a, b) { var R = 6371, dl = (b[0] - a[0]) * Math.PI / 180, dn = (b[1] - a[1]) * Math.PI / 180, x = Math.sin(dl / 2) * Math.sin(dl / 2) + Math.cos(a[0] * Math.PI / 180) * Math.cos(b[0] * Math.PI / 180) * Math.sin(dn / 2) * Math.sin(dn / 2); return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)); }
+  // адрес гостя: сначала то, что вписал оператор, потом — что гость сохранил на сайте
+  function guestAddr(cid) {
+    var p = prof[cid] || {}, a = ((gx[cid] || {}).ctx || {}).ad || {};
+    return p.st ? { st: p.st, ho: p.ho || "", bl: p.bl || "", en: p.en || "", fl: p.fl || "", fr: p.fr || "" } : { st: a.st || "", ho: a.ho || "", bl: "", en: a.en || "", fl: a.fl || "", fr: a.fr || "" };
+  }
+  function addrText(a) {
+    if (!a || !a.st) return "";
+    return a.st + (a.ho ? ", дом " + a.ho + (a.bl ? "/" + a.bl : "") : "") + (a.en ? ", подъезд " + a.en : "") + (a.fl ? ", кв " + a.fl : "") + (a.fr ? ", этаж " + a.fr : "");
+  }
+  function twoGis(a) { return "https://2gis.kz/uralsk" + (a && a.st ? "/search/" + encodeURIComponent(a.st + (a.ho ? " " + a.ho + (a.bl ? "/" + a.bl : "") : "")) : ""); }
+  // подсказки улиц Уральска и координаты (OpenStreetMap), чтобы понять, какой филиал ближе
+  var geoCache = {};
+  function geoSearch(q) {
+    q = String(q || "").trim();
+    if (q.length < 3) return Promise.resolve([]);
+    if (geoCache[q]) return Promise.resolve(geoCache[q]);
+    for (var i = 0; i < BR_OK.length; i++) if (q.toLowerCase().replace(/\s+/g, " ").indexOf(BR_OK[i][1].toLowerCase()) === 0) return Promise.resolve(geoCache[q] = [{ road: BR_OK[i][1].replace(/\s+\S+$/, ""), house: BR_OK[i][1].split(" ").pop(), sub: "филиал", xy: BR_XY[BR_OK[i][0]] }]);
+    var url = "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&countrycodes=kz&accept-language=ru&viewbox=51.20,51.33,51.62,51.13&bounded=1&q=" + encodeURIComponent(q + ", Уральск");
+    return fetch(url).then(function (r) { return r.json(); }).then(function (arr) {
+      var out = [], seen = {};
+      (arr || []).forEach(function (x) {
+        var ad = x.address || {}, road = String(ad.road || ad.pedestrian || ad.neighbourhood || ad.suburb || x.name || "").replace(/^(улица|ул\.)\s+/i, ""), house = ad.house_number || "";
+        var key = (road + " " + house).toLowerCase();
+        if (!road || seen[key]) return; seen[key] = 1;
+        out.push({ road: road, house: house, sub: ad.suburb || ad.neighbourhood || ad.city_district || "", xy: [Number(x.lat), Number(x.lon)] });
+      });
+      geoCache[q] = out; return out;
+    }).catch(function () { return []; });
+  }
+  function nearest(xy) {
+    if (!xy || !isFinite(xy[0])) return null;
+    var best = null;
+    BR_OK.forEach(function (b) { var d = km(xy, BR_XY[b[0]]); if (!best || d < best.d) best = { id: b[0], name: b[1], d: d }; });
+    best.all = BR_OK.map(function (b) { return { id: b[0], name: b[1], d: km(xy, BR_XY[b[0]]) }; });
+    return best;
+  }
   function handle(r, reqCid) {
     if (r.ver) ver = Math.max(ver, r.ver);
     if (reqCid && r.guest) gx[reqCid] = r.guest;
+    if (reqCid && r.prof && !profSaving[reqCid]) prof[reqCid] = r.prof;
     chats = fbOverlay(fbKeepChats(visibleChats(r.chats)));
     fbSyncBlocks(r.chats || []);
     var un = chats.reduce(function (a, c) { return a + (c.un || 0); }, 0);
@@ -931,7 +984,10 @@ textarea::placeholder{color:#a1a1a6}
     var el = $("insp");
     el.classList.toggle("hidden", !(inspOn && cur));
     if (!inspOn || !cur) return;
-    var g = gx[cur] || {}, x = g.ctx || {}, has = !!g.ctx, ph = x.ph || "", wn = waNum(ph), h = "";
+    // идёт правка карточки — не перерисовываем, чтобы не сбить ввод
+    if (profEdit[cur] && el._editCid === cur && el.querySelector(".pedit")) return;
+    el._editCid = profEdit[cur] ? cur : null;
+    var g = gx[cur] || {}, x = g.ctx || {}, has = !!g.ctx, ph = (prof[cur] || {}).ph || x.ph || "", wn = waNum(ph), h = "";
     if (innerWidth <= 1180) h += '<div style="display:flex;justify-content:flex-end;margin:-8px -4px 0"><button class="ic" data-x="close" aria-label="Закрыть">' + ICO.close + "</button></div>";
     h += '<div class="who"><div class="ava xl" style="background:' + color(c && c.n) + '">' + esc(avaTxt(c)) + "</div><b>" + esc(c ? title(c) : "Гость") + '</b><small class="' + (online(c) && !(c && c.bl) ? "on" : "") + '">' + esc((c && c.bl ? "🚫 заблокирован · " : "") + (c && c.name ? "Гость №" + (c.n || "?") + " · " : "") + status(c)) + "</small></div>";
     h += '<div class="acts">' +
@@ -939,12 +995,39 @@ textarea::placeholder{color:#a1a1a6}
       '<a class="act' + (wn ? "" : " off") + '" href="' + (wn ? "https://wa.me/" + wn : "#") + '" target="_blank" rel="noopener">' + ICO.wa + "WhatsApp</a>" +
       '<button class="act" data-x="order">' + ICO.bag22 + "Заказ</button>" +
       '<button class="act" data-x="book">' + ICO.cal22 + "Бронь</button></div>";
-    h += '<div class="gh">Гость</div><div class="grp">' +
-      li(ICO.person, "Имя", x.nm || (c && c.name) || "—") + li(ICO.phoneS, "Телефон", ph || "—") +
-      li(ICO.repeat, "Заказов", x.orders ? String(x.orders) : has ? "новый гость" : "—") +
-      li(ICO.globe, "Язык", c && c.lang ? LANG[c.lang] || c.lang : "—") +
-      li(ICO.pin, "Филиал", c && c.br ? BR[c.br] || c.br : x.br ? BR[x.br] || x.br : "—") +
-      (x.seen ? li(ICO.eye, "Смотрел", x.seen) : "") + "</div>";
+    var p = prof[cur] || {}, ad = guestAddr(cur);
+    if (profEdit[cur]) {
+      // ── правка карточки: всё, что знаете о госте (сохраняется в скрипте, гостю не видно)
+      var e = profEdit[cur], fi = function (k, lab, ph2, t) { return '<div class="f"><label>' + lab + '</label><input data-p="' + k + '"' + (t ? ' type="' + t + '"' : "") + ' value="' + esc(e[k] || "") + '" placeholder="' + esc(ph2 || "") + '"></div>'; };
+      h += '<div class="gh ghx">Гость<span><button class="lnk" data-x="pcancel">Отмена</button><button class="lnk b" data-x="psave">Сохранить</button></span></div><div class="grp pedit">' +
+        fi("nm", "Имя", "Имя гостя") + fi("ph", "Телефон", "+7 7xx xxx xx xx", "tel") +
+        '<div class="f"><label>Улица</label><input data-p="st" value="' + esc(e.st || "") + '" placeholder="Досмухамедова" autocomplete="off"></div><div class="sugg" id="pSugg"></div>' +
+        '<div class="f two"><label>Дом</label><input data-p="ho" value="' + esc(e.ho || "") + '" placeholder="12"><label class="s">Корпус</label><input data-p="bl" value="' + esc(e.bl || "") + '" placeholder="—"></div>' +
+        '<div class="f two"><label>Подъезд</label><input data-p="en" value="' + esc(e.en || "") + '" placeholder="—"><label class="s">Квартира</label><input data-p="fl" value="' + esc(e.fl || "") + '" placeholder="—"></div>' +
+        fi("fr", "Этаж", "—") +
+        '<div class="f"><label>Заметка</label><input data-p="note" value="' + esc(e.note || "") + '" placeholder="любит острое, звонить заранее"></div>' +
+        '<div class="f"><label>Последний заказ</label><textarea data-p="last" placeholder="Поцелуй гейши ×1, Цезарь запечённый ×1 — 4 900 ₸">' + esc(e.last || "") + "</textarea></div></div>";
+    } else {
+      h += '<div class="gh ghx">Гость<span><button class="lnk" data-x="pedit">Изменить</button></span></div><div class="grp">' +
+        li(ICO.person, "Имя", p.nm || x.nm || (c && c.name) || "—") + li(ICO.phoneS, "Телефон", p.ph || ph || "—") +
+        (ad.st ? '<div class="li addr">' + ICO.pin + '<span class="k">Адрес</span><span class="v wrap">' + esc(addrText(ad)) + '</span></div><a class="li btn" href="' + esc(twoGis(ad)) + '" target="_blank" rel="noopener">' + ICO.pin + "Открыть в 2ГИС</a>" : "") +
+        (p.note ? li(ICO.eye, "Заметка", p.note) : "") +
+        li(ICO.repeat, "Заказов", x.orders ? String(x.orders) : has ? "новый гость" : "—") +
+        li(ICO.globe, "Язык", c && c.lang ? LANG[c.lang] || c.lang : "—") +
+        li(ICO.pin, "Филиал", c && c.br ? BR[c.br] || c.br : x.br ? BR[x.br] || x.br : "—") +
+        (x.seen ? li(ICO.eye, "Смотрел", x.seen) : "") + "</div>";
+    }
+    // последний заказ: с телефона гостя или вписанный вами
+    var lo = x.lo && x.lo.it && x.lo.it.length ? x.lo : null;
+    if (lo || p.last) {
+      h += '<div class="gh">Последний заказ' + (lo && lo.d ? " · " + esc(lo.d) : "") + '</div><div class="grp">';
+      if (lo) {
+        h += '<div class="li cart">' + lo.it.map(function (i) { return '<div class="ci"><span>' + esc(i[0]) + "</span><span>×" + esc(i[1]) + "</span></div>"; }).join("") + "</div>";
+        if (lo.s) h += '<div class="li tot"><span class="k" style="color:inherit">Итого</span><span class="v">' + Number(lo.s).toLocaleString("ru") + " ₸" + (lo.t ? " · " + esc(lo.t === "delivery" ? "доставка" : lo.t === "self" ? "самовывоз" : lo.t) : "") + "</span></div>";
+      }
+      if (p.last) h += '<div class="li"><span class="v wrap" style="max-width:100%;text-align:left;font-weight:400">' + esc(p.last) + "</span></div>";
+      h += '<div class="li btn" data-x="repeat">' + ICO.bag + "Повторить этот заказ</div></div>";
+    }
     h += '<div class="gh">Корзина</div><div class="grp">';
     if (x.cart && x.cart.length) {
       h += '<div class="li cart">' + x.cart.map(function (i) { return '<div class="ci"><span>' + esc(i[0]) + "</span><span>×" + esc(i[1]) + "</span></div>"; }).join("") + "</div>";
@@ -953,7 +1036,7 @@ textarea::placeholder{color:#a1a1a6}
     } else h += '<div class="none">' + (has ? "Корзина пустая" : "Появится, когда гость напишет с сайта") + "</div>";
     h += "</div>";
     // что гость делает на сайте прямо сейчас
-    var act = (g.act || []).slice(-8).reverse();
+    var act = (g.act || []).slice(-25).reverse();
     h += '<div class="gh">' + (online(c) ? '<span class="live">Сейчас на сайте</span>' : "Действия на сайте") + '</div><div class="grp feed">';
     h += act.length ? act.map(evHtml).join("") : '<div class="none">Здесь будет видно, что гость смотрит и кладёт в корзину</div>';
     h += "</div>";
@@ -964,11 +1047,64 @@ textarea::placeholder{color:#a1a1a6}
     if (el._html !== h) { el._html = h; el.innerHTML = h; }
   }
   $("insp").onclick = function (e) {
+    var sg0 = e.target.closest("[data-sg]");
+    if (sg0 && profEdit[cur]) {
+      var s0 = profSugg[Number(sg0.getAttribute("data-sg"))]; if (!s0) return;
+      var bx = $("insp");
+      bx.querySelector('[data-p="st"]').value = profEdit[cur].st = s0.road;
+      if (s0.house) bx.querySelector('[data-p="ho"]').value = profEdit[cur].ho = s0.house;
+      $("pSugg").innerHTML = "";
+      return;
+    }
     var a = e.target.closest("[data-x]"); if (!a) return;
     var x = a.getAttribute("data-x");
     if (x === "order") orderSheet(); else if (x === "book") bookSheet(); else if (x === "copy") $("copyId").click(); else if (x === "del") { if (cur) deleteChat(cur); } else if (x === "close") toggleInsp();
     else if (x === "block" || x === "unblock") blockGuest(cur, x === "block");
+    else if (x === "pedit") profStart();
+    else if (x === "pcancel") { delete profEdit[cur]; $("insp")._html = ""; renderInsp(chatBy(cur)); }
+    else if (x === "psave") profSave();
+    else if (x === "repeat") {
+      var gg = (gx[cur] || {}).ctx || {}, lo = gg.lo, pl = (prof[cur] || {}).last;
+      var items = lo && lo.it && lo.it.length ? lo.it.map(function (i) { return i[0] + (i[1] > 1 ? " ×" + i[1] : ""); }).join(", ") : String(pl || "").replace(/\s*[—-]\s*[\d\s]+₸.*$/, "");
+      orderSheet({ items: items });
+    }
   };
+  // ── правка карточки гостя
+  var profSugg = [], profSuggT = 0;
+  function profStart() {
+    var p = prof[cur] || {}, x = (gx[cur] || {}).ctx || {}, c = chatBy(cur) || {}, a = guestAddr(cur);
+    profEdit[cur] = { nm: p.nm || x.nm || c.name || "", ph: p.ph || x.ph || "", st: a.st, ho: a.ho, bl: a.bl, en: a.en, fl: a.fl, fr: a.fr, note: p.note || "", last: p.last || "" };
+    $("insp")._html = ""; renderInsp(c);
+    var f = $("insp").querySelector('[data-p="nm"]'); if (f) f.focus();
+  }
+  function profSave() {
+    var cid = cur, v = profEdit[cid]; if (!v) return;
+    var clean = {}; Object.keys(v).forEach(function (k) { var s = String(v[k] || "").trim(); if (s) clean[k] = s; });
+    prof[cid] = clean; profSaving[cid] = true; delete profEdit[cid];
+    try { localStorage.setItem("op_prof", JSON.stringify(prof)); } catch (e) {}
+    var c = chatBy(cid); if (c && clean.nm) c.name = clean.nm;
+    $("insp")._html = ""; renderInsp(c); renderList(); renderHead();
+    api({ action: "opPanelProf", cid: cid, prof: JSON.stringify(clean) }).then(function (r) {
+      profSaving[cid] = false;
+      if (r && r.ok) { prof[cid] = r.prof || clean; try { localStorage.setItem("op_prof", JSON.stringify(prof)); } catch (e) {} toast("Карточка сохранена"); }
+      else toast("Не сохранилось в скрипте — нет связи. На этом устройстве данные остались");
+    }).catch(function () { profSaving[cid] = false; toast("Нет связи — сохранено только на этом устройстве"); });
+  }
+  $("insp").addEventListener("input", function (e) {
+    var k = e.target.getAttribute && e.target.getAttribute("data-p");
+    if (!k || !profEdit[cur]) return;
+    profEdit[cur][k] = e.target.value;
+    if (k === "st" || k === "ho") {
+      clearTimeout(profSuggT);
+      var q = (profEdit[cur].st || "") + (profEdit[cur].ho ? " " + profEdit[cur].ho : "");
+      profSuggT = setTimeout(function () {
+        geoSearch(q).then(function (list) {
+          profSugg = list; var b = $("pSugg"); if (!b) return;
+          b.innerHTML = list.slice(0, 5).map(function (s, i) { var n = nearest(s.xy); return '<div class="sg" data-sg="' + i + '"><b>' + esc(s.road) + (s.house ? ", " + esc(s.house) : "") + "</b><small>" + esc(s.sub || "Уральск") + (n ? " · ближе " + esc(n.name) + " — " + n.d.toFixed(1).replace(".", ",") + " км" : "") + "</small></div>"; }).join("");
+        });
+      }, 450);
+    }
+  });
   function toggleInsp() { inspOn = !inspOn; if (innerWidth > 1180) ls("op_insp", inspOn ? "1" : "0"); renderHead(); if (!cur) $("insp").classList.add("hidden"); }
   $("inspBtn").onclick = toggleInsp;
 
@@ -1233,6 +1369,48 @@ textarea::placeholder{color:#a1a1a6}
     sheet({ title: "Не отправлено", ok: redo ? "Исправить" : "Понятно", body: '<div class="keys-l" style="display:block;white-space:pre-wrap;line-height:1.55">' + esc(msg) + "</div>", onOk: function () { if (redo) setTimeout(redo, 30); } });
   }
 
+  // ── адрес заказа по полям + филиал (только Самал и Скоробогатова) + подсказка, какой ближе
+  function addrFields(v, mode, c, x) {
+    var a = v.st != null ? v : v.addr ? { st: v.addr } : guestAddr(cur);
+    var br = v.br || (c.br === "samal" || c.br === "skoro" ? c.br : x.br === "samal" || x.br === "skoro" ? x.br : "samal");
+    var hid = mode === "d" ? "" : " hidden", fd = function (n, lab, val, ph) { return '<label class="s">' + lab + '</label><input data-n="' + n + '" value="' + esc(val || "") + '" placeholder="' + (ph || "—") + '">'; };
+    return '<div class="f' + hid + '" data-for="mode:d"><label>Улица</label><input data-n="st" value="' + esc(a.st || "") + '" placeholder="Досмухамедова" autocomplete="off"></div>' +
+      '<div class="sugg' + hid + '" data-for="mode:d" id="oSugg"></div>' +
+      '<div class="f two' + hid + '" data-for="mode:d"><label>Дом</label><input data-n="ho" value="' + esc(a.ho || "") + '" placeholder="12">' + fd("bl", "Корпус", a.bl) + "</div>" +
+      '<div class="f two' + hid + '" data-for="mode:d"><label>Подъезд</label><input data-n="en" value="' + esc(a.en || "") + '" placeholder="—">' + fd("fl", "Кв.", a.fl) + fd("fr", "Этаж", a.fr) + "</div>" +
+      '<div class="li btn' + hid + '" data-for="mode:d" data-act="gis">' + ICO.pin + "Открыть в 2ГИС</div>" +
+      '<div class="f"><label>Филиал</label>' + segHtml("br", BR_OK, br) + '<input type="hidden" data-n="brset" value="' + (v.brset || "") + '"></div>' +
+      '<div class="near far" id="oNear"></div>';
+  }
+  // подсказки адреса и «какой филиал ближе» — прямо в форме
+  function addrLive(ov) {
+    var t = 0, list = [];
+    function q() { var st = ov.querySelector('[data-n="st"]'), ho = ov.querySelector('[data-n="ho"]'); return st ? (st.value.trim() + (ho && ho.value.trim() ? " " + ho.value.trim() : "")) : ""; }
+    function near(xy, auto) {
+      var n = nearest(xy), box = ov.querySelector("#oNear"); if (!box) return;
+      if (!n) { box.textContent = ""; return; }
+      box.className = "near";
+      box.textContent = "📍 Ближе: " + n.name + " — " + n.d.toFixed(1).replace(".", ",") + " км" + n.all.filter(function (b) { return b.id !== n.id; }).map(function (b) { return " · " + b.name + " — " + b.d.toFixed(1).replace(".", ",") + " км"; }).join("");
+      var set = ov.querySelector('[data-n="brset"]');
+      if (auto && set && !set.value) ov.querySelectorAll('.seg[data-n="br"] button').forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-v") === n.id); });
+    }
+    function run(showList) {
+      var s = q(); if (s.length < 3) { ov.querySelector("#oSugg").innerHTML = ""; return; }
+      geoSearch(s).then(function (res) {
+        list = res; var b = ov.querySelector("#oSugg"); if (!b) return;
+        b.innerHTML = showList ? res.slice(0, 5).map(function (r, i) { var n = nearest(r.xy); return '<div class="sg" data-act="sg:' + i + '"><b>' + esc(r.road) + (r.house ? ", " + esc(r.house) : "") + "</b><small>" + esc(r.sub || "Уральск") + (n ? " · ближе " + esc(n.name) + " — " + n.d.toFixed(1).replace(".", ",") + " км" : "") + "</small></div>"; }).join("") : "";
+        if (res[0]) near(res[0].xy, true);
+      });
+    }
+    ov.addEventListener("input", function (e) { var n = e.target.getAttribute && e.target.getAttribute("data-n"); if (n === "st" || n === "ho") { clearTimeout(t); t = setTimeout(function () { run(true); }, 450); } });
+    ov.addEventListener("click", function (e) { if (e.target.closest('.seg[data-n="br"] button')) { var set = ov.querySelector('[data-n="brset"]'); if (set) set.value = "1"; } });
+    ov._pickSugg = function (i) {
+      var r = list[i]; if (!r) return;
+      ov.querySelector('[data-n="st"]').value = r.road; if (r.house) ov.querySelector('[data-n="ho"]').value = r.house;
+      ov.querySelector("#oSugg").innerHTML = ""; near(r.xy, true);
+    };
+    if (q().length >= 3) run(false);
+  }
   // ── собрать заказ за гостя: он получит анкету и сам отправит её в WhatsApp
   function orderSheet(pre) {
     if (!cur) return toast("Сначала откройте чат");
@@ -1240,19 +1418,21 @@ textarea::placeholder{color:#a1a1a6}
     var c = chatBy(cur) || {}, x = (gx[cur] || {}).ctx || {}, v = pre || drafts[dk] || {};
     var items = v.items != null ? v.items : (x.cart || []).map(function (i) { return i[0] + (i[1] > 1 ? " ×" + i[1] : ""); }).join(", ");
     var mode = v.mode || "d";
-    sheet({ title: "Собрать заказ", ok: "Отправить", dock: true, onClose: function (ov) { draftSave(dk, vals(ov)); }, body:
+    var ov0 = sheet({ title: "Собрать заказ", ok: "Отправить", dock: true, onClose: function (ov) { draftSave(dk, vals(ov)); }, body:
       '<div class="gh">Состав</div><div class="grp"><div class="f"><textarea data-n="items" autofocus placeholder="маргарита, кола 2, фри">' + esc(items) + '</textarea></div><div class="li btn" data-act="pick">' + ICO.fork + "Выбрать из меню</div></div>" +
       '<div class="hint">Через запятую, количество — числом: «кола 2». Цены гость увидит свои, из меню своего филиала.</div>' +
       '<div class="gh">Получение</div><div class="grp"><div class="f">' + segHtml("mode", [["d", "Доставка"], ["s", "Самовывоз"]], mode) + "</div>" +
-      '<div class="f' + (mode === "d" ? "" : " hidden") + '" data-for="mode:d"><label>Адрес</label><input data-n="addr" placeholder="Досмухамедова 12, кв 5" value="' + esc(v.addr || "") + '"></div>' +
+      addrFields(v, mode, c, x) +
       '<div class="f' + (mode === "s" ? "" : " hidden") + '" data-for="mode:s"><label>Заберёт в</label><input data-n="time" type="time" value="' + esc(v.time || "") + '"></div>' +
       '<div class="f"><label>Оплата</label>' + segHtml("pay", [["kaspi", "Kaspi"], ["cash", "Наличные"]], v.pay || "kaspi") + "</div>" +
       '<div class="f"><label>Приборы</label>' + stepHtml("cut", v.cut || 1, 0, 20) + "</div></div>" +
-      '<div class="gh">Гость</div><div class="grp"><div class="f"><label>Имя</label><input data-n="name" value="' + esc(v.name != null ? v.name : x.nm || c.name || "") + '" placeholder="впишет сам"></div>' +
-      '<div class="f"><label>Телефон</label><input data-n="phone" type="tel" value="' + esc(v.phone != null ? v.phone : x.ph || "") + '" placeholder="впишет сам"></div>' +
+      '<div class="gh">Гость</div><div class="grp"><div class="f"><label>Имя</label><input data-n="name" value="' + esc(v.name != null ? v.name : (prof[cur] || {}).nm || x.nm || c.name || "") + '" placeholder="впишет сам"></div>' +
+      '<div class="f"><label>Телефон</label><input data-n="phone" type="tel" value="' + esc(v.phone != null ? v.phone : (prof[cur] || {}).ph || x.ph || "") + '" placeholder="впишет сам"></div>' +
       '<div class="f"><label>Пожелания</label><input data-n="note" value="' + esc(v.note || "") + '" placeholder="без лука, позвонить заранее"></div></div>' +
       '<div class="hint">Гость получит анкету с ценами и итогом и сам отправит её в WhatsApp. Всё, что вы заполнили, он изменить не сможет — впишет только пустые поля. ' + MOD + "Enter — отправить.</div>",
       onAct: function (a, ov) {
+        if (a === "gis") { var d0 = vals(ov); window.open(twoGis({ st: d0.st, ho: d0.ho, bl: d0.bl }), "_blank", "noopener"); return; }
+        if (/^sg:/.test(a)) { if (ov._pickSugg) ov._pickSugg(Number(a.slice(3))); return; }
         if (a !== "pick") return;
         var keep = vals(ov);
         menuPicker({ mode: "order", title: "Добавить в заказ", ok: "Добавить", onPick: function (arr) {
@@ -1266,7 +1446,9 @@ textarea::placeholder{color:#a1a1a6}
         if (!d.items) { shake(ov); return false; }
         draftSave(dk, null);
         var t = "/заказ " + d.items.replace(/\s*\n+\s*/g, ", ");
-        if (d.mode === "s") t += "\nсамовывоз" + (d.time ? " " + d.time : ""); else if (d.addr) t += "\nадрес: " + d.addr;
+        if (d.mode === "s") t += "\nсамовывоз" + (d.time ? " " + d.time : "");
+        else if (d.st) t += "\nадрес: " + d.st.replace(/[,;\n]+/g, " ") + (d.ho ? ", дом " + d.ho + (d.bl ? "/" + d.bl : "") : "") + (d.en ? ", подъезд " + d.en : "") + (d.fl ? ", кв " + d.fl : "") + (d.fr ? ", этаж " + d.fr : "");
+        t += "\nфилиал: " + (d.br === "skoro" ? "скоро" : "самал");
         t += "\nоплата: " + (d.pay === "cash" ? "наличные" : "kaspi");
         if (d.cut > 1) t += "\nприборы " + d.cut;
         if (d.name) t += "\nимя: " + d.name;
@@ -1275,6 +1457,7 @@ textarea::placeholder{color:#a1a1a6}
         var p = sendNow(t);
         if (p) p.redo = function () { orderSheet(d); };
       } });
+    addrLive(ov0);
   }
   // ── собрать бронь
   function isoDay(add) { var d = new Date(Date.now() + (add || 0) * 864e5); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
@@ -1282,14 +1465,14 @@ textarea::placeholder{color:#a1a1a6}
     if (!cur) return toast("Сначала откройте чат");
     var dk = cur + ":book";
     var c = chatBy(cur) || {}, x = (gx[cur] || {}).ctx || {}, v = pre || drafts[dk] || {};
-    var br = v.br || (BR[c.br] ? c.br : BR[x.br] ? x.br : "samal");
+    var br = v.br === "samal" || v.br === "skoro" ? v.br : c.br === "samal" || c.br === "skoro" ? c.br : x.br === "samal" || x.br === "skoro" ? x.br : "samal";
     sheet({ title: "Собрать бронь", ok: "Отправить", dock: true, onClose: function (ov) { draftSave(dk, vals(ov)); }, body:
       '<div class="gh">Когда</div><div class="grp"><div class="f"><label>Дата</label><input data-n="date" type="date" min="' + isoDay(0) + '" value="' + esc(v.date || isoDay(0)) + '"></div>' +
       '<div class="f"><label>Время</label><input data-n="time" type="time" autofocus value="' + esc(v.time || "19:00") + '"></div>' +
       '<div class="f"><label>Гостей</label>' + stepHtml("g", v.g || 2, 1, 30) + "</div></div>" +
-      '<div class="gh">Филиал</div><div class="grp"><div class="f">' + segHtml("br", [["samal", "Самал"], ["skoro", "Скоробогатова"], ["abulhair", "Абулхаир"]], br) + "</div></div>" +
-      '<div class="gh">Гость</div><div class="grp"><div class="f"><label>Имя</label><input data-n="name" value="' + esc(v.name != null ? v.name : x.nm || c.name || "") + '" placeholder="впишет сам"></div>' +
-      '<div class="f"><label>Телефон</label><input data-n="phone" type="tel" value="' + esc(v.phone != null ? v.phone : x.ph || "") + '" placeholder="впишет сам"></div>' +
+      '<div class="gh">Филиал</div><div class="grp"><div class="f">' + segHtml("br", BR_OK, br) + "</div></div>" +
+      '<div class="gh">Гость</div><div class="grp"><div class="f"><label>Имя</label><input data-n="name" value="' + esc(v.name != null ? v.name : (prof[cur] || {}).nm || x.nm || c.name || "") + '" placeholder="впишет сам"></div>' +
+      '<div class="f"><label>Телефон</label><input data-n="phone" type="tel" value="' + esc(v.phone != null ? v.phone : (prof[cur] || {}).ph || x.ph || "") + '" placeholder="впишет сам"></div>' +
       '<div class="f"><label>Комментарий</label><input data-n="cm" value="' + esc(v.cm || "") + '" placeholder="у окна, детский стул"></div></div>' +
       '<div class="hint">Гость проверит анкету, отметит согласие с условиями брони и сам отправит её в WhatsApp.</div>',
       onOk: function (ov) {
@@ -1325,9 +1508,9 @@ textarea::placeholder{color:#a1a1a6}
   }
   function menuPicker(o) {
     if (!cur) return toast("Сначала откройте чат");
-    var c = chatBy(cur) || {}, gc = (gx[cur] || {}).ctx || {}, br = BR[c.br] ? c.br : BR[gc.br] ? gc.br : "samal", sel = {}, data = null, q = "";
+    var c = chatBy(cur) || {}, gc = (gx[cur] || {}).ctx || {}, br = c.br === "samal" || c.br === "skoro" ? c.br : gc.br === "samal" || gc.br === "skoro" ? gc.br : "samal", sel = {}, data = null, q = "";
     var ov = sheet({ title: o.title || "Меню", ok: o.ok || "Отправить", wide: true, onCancel: o.onCancel,
-      body: '<div class="mp-top">' + segHtml("mbr", [["samal", "Самал"], ["skoro", "Скоробогатова"], ["abulhair", "Абулхаир"]], br) +
+      body: '<div class="mp-top">' + segHtml("mbr", BR_OK, br) +
         '<label class="search mp-s">' + ICO.search + '<input id="mpQ" placeholder="Поиск блюда" autocomplete="off"></label><div class="mp-cats" id="mpCats"></div></div><div id="mpList"><div class="none">Загружаем меню…</div></div>',
       onOk: function () {
         var arr = Object.keys(sel).map(function (k) { return sel[k]; });
