@@ -61,6 +61,7 @@ kbd{font:500 11px/1 -apple-system,BlinkMacSystemFont,"Inter",sans-serif;color:va
 .seg button i{font-style:normal;color:var(--sub);font-weight:500;margin-left:3px}
 .conn{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);padding:10px 4px 4px}
 .conn::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(52,199,89,.15)}
+.conn{cursor:pointer}.fbin{display:block;width:100%;box-sizing:border-box;margin:0 0 10px;padding:12px 14px;border:1px solid var(--line,#e5e5ea);border-radius:12px;font:inherit;font-size:15px;background:var(--card,#fff);color:inherit;outline:none}.fbin:focus{border-color:#0a84ff;box-shadow:0 0 0 3px rgba(10,132,255,.15)}.conn.fast::after{content:"⚡ мгновенно";margin-left:4px;color:var(--green);font-weight:600}
 .conn.bad{color:var(--red)}.conn.bad::before{background:var(--red);box-shadow:0 0 0 3px rgba(255,59,48,.15)}
 .list{flex:1;overflow-y:auto;padding:4px 8px 12px}
 .row{display:flex;gap:12px;align-items:center;padding:10px;border-radius:12px;cursor:pointer;position:relative;transition:background .15s}
@@ -331,7 +332,7 @@ textarea::placeholder{color:#a1a1a6}
       </div>
       <label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="Поиск" autocomplete="off"><kbd id="kSearch">⌘K</kbd></label>
       <div class="seg" id="seg"><button data-f="all" class="on">Все</button><button data-f="un">Новые<i id="segUn"></i></button><button data-f="on">В сети<i id="segOn"></i></button></div>
-      <div class="conn" id="conn">Подключение…</div>
+      <div class="conn" id="conn" role="button" tabindex="0">Подключение…</div>
     </div>
     <div class="list" id="list"></div>
   </aside>
@@ -452,6 +453,130 @@ textarea::placeholder{color:#a1a1a6}
       .then(function (r) { return r.json(); }) // страница ошибки Google (не JSON) → повтор, как при обрыве
       .finally(function () { clearTimeout(t); if (isPoll && pollCtl === ctl) pollCtl = null; });
   }
+  // ════ мгновенный канал (Firebase Realtime Database) ════
+  // Сообщения гостей, «печатает», прочитано и блок — за доли секунды. Скрипт работает как раньше и страхует.
+  var FB = window._opFB || { key: "AIzaSyD3101vOHEOxSVJM1cVADAr781geVbt8OY", db: "https://seven-ai-50995-default-rtdb.europe-west1.firebasedatabase.app", auth: "https://identitytoolkit.googleapis.com", sec: "https://securetoken.googleapis.com", ns: "" };
+  var fb = { tok: "", exp: 0, es: null, st: null, known: {}, t0: Date.now(), on: false, tyAt: 0, tmpIn: {}, tmpChats: {} };
+  function fbUrl(path, q) { return FB.db + "/" + path + ".json?" + (FB.ns ? "ns=" + FB.ns + "&" : "") + "auth=" + encodeURIComponent(fb.tok) + (q ? "&" + q : ""); }
+  function fbJson(r) { return r.json().then(function (j) { if (!r.ok) { var e = new Error((j && j.error && (j.error.message || j.error)) || "fb " + r.status); e.status = r.status; throw e; } return j; }); }
+  function fbSave(a) { fb.tok = a.t; fb.exp = Date.now() + (Number(a.e) || 3600) * 1000; ls("op_fb_rt", a.r); }
+  function fbAuth() {
+    if (fb.tok && Date.now() < fb.exp - 120e3) return Promise.resolve(fb.tok);
+    var rt = ls("op_fb_rt");
+    if (!rt) return Promise.reject(new Error("login"));
+    return fetch(FB.sec + "/v1/token?key=" + FB.key, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(rt) })
+      .then(fbJson).then(function (j) { fbSave({ t: j.id_token, r: j.refresh_token, e: j.expires_in }); return fb.tok; }, function (e) { if (e.status === 400) ls("op_fb_rt", null); throw e; });
+  }
+  function fbLogin() {
+    sheet({ title: "Мгновенный режим", ok: "Войти", body:
+      '<p class="hint" style="margin:0 0 12px">Сообщения, «печатает» и блок — за доли секунды. Вход — аккаунтом оператора из Firebase (Authentication → Users). Один раз на этом устройстве.</p>' +
+      '<input id="fbE" class="fbin" type="email" placeholder="Email" autocomplete="username" autofocus>' +
+      '<input id="fbP" class="fbin" type="password" placeholder="Пароль" autocomplete="current-password"><div id="fbErr" class="hint" style="color:var(--red)"></div>',
+      onOk: function (ov) {
+        var em = ov.querySelector("#fbE").value.trim(), pw = ov.querySelector("#fbP").value;
+        if (!em || !pw) return false;
+        ov.querySelector("#fbErr").textContent = "Проверяем…";
+        fetch(FB.auth + "/v1/accounts:signInWithPassword?key=" + FB.key, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: em, password: pw, returnSecureToken: true }) })
+          .then(fbJson).then(function (j) { fbSave({ t: j.idToken, r: j.refreshToken, e: j.expiresIn }); closeSheet(); toast("Мгновенный режим включён"); fbStart(); },
+            function (e) { var x = ov.querySelector("#fbErr"); if (x) x.textContent = /PASSWORD|EMAIL|CREDENTIAL|USER/.test(e.message) ? "Неверный email или пароль" : "Нет связи с Firebase"; });
+        return false;
+      } });
+  }
+  // все новые сообщения гостей — одним потоком
+  function fbStart() {
+    if (fb.es || !window.EventSource) return;
+    fb.es = { pending: 1 };
+    fbAuth().then(function () {
+      var es = new EventSource(fbUrl("in", 'orderBy="$key"&limitToLast=60'));
+      fb.es = es; fb.st = null;
+      es.addEventListener("put", function (e) { fbEv(e, false); });
+      es.addEventListener("patch", function (e) { fbEv(e, true); });
+      es.addEventListener("auth_revoked", function () { fbStop(); fb.tok = ""; setTimeout(fbStart, 300); });
+      es.addEventListener("cancel", function () { fbStop(); fb.denied = true; fbConn(); toast("Firebase: нет доступа. Проверьте email оператора в правилах базы"); });
+      es.onopen = function () { fb.on = true; fb.denied = false; fbConn(); };
+      es.onerror = function () { fb.on = false; fbConn(); if (es.readyState === 2) { fbStop(); setTimeout(fbStart, 3000); } };
+      fbClean();
+    }, function () { fb.es = null; fbConn(); });
+  }
+  function fbStop() { var es = fb.es; fb.es = null; fb.on = false; if (es && es.close) es.close(); fbConn(); }
+  function fbConn() { var c = $("conn"); if (!c) return; c.classList.toggle("fast", fb.on); c.title = fb.on ? "Мгновенный режим (Firebase) включён" : "Нажмите, чтобы включить мгновенный режим"; }
+  function fbEv(e, patch) {
+    var d; try { d = JSON.parse(e.data); } catch (x) { return; }
+    if (!d) return;
+    var first = fb.st === null, parts = String(d.path || "/").split("/").filter(Boolean);
+    if (first) fb.st = {};
+    if (!parts.length) { if (patch) { for (var k in d.data || {}) fb.st[k] = d.data[k]; } else fb.st = d.data || {}; }
+    else if (d.data === null) delete fb.st[parts[0]]; else fb.st[parts[0]] = d.data;
+    var keys = Object.keys(fb.st).sort();
+    keys.forEach(function (k) {
+      if (fb.known[k]) return;
+      fb.known[k] = 1;
+      var it = fb.st[k];
+      // что было до открытия панели — уже пришло через скрипт
+      if (!it || !it.c || (first && !parts.length && !(it.ts > fb.t0 - 5000))) return;
+      fbIncoming(it);
+    });
+  }
+  function fbLabel(it) { return it.k === "voice" ? "🎤 Голосовое" : it.k === "vn" ? "⭕ Кружочек" : it.k === "img" ? "📷 Фото" : String(it.t || ""); }
+  function fbIncoming(it) {
+    var cid = String(it.c), now = Date.now(), c = chatBy(cid), open = cid === cur && D.visibilityState === "visible";
+    if (!c) { c = { cid: cid, name: it.nm || "", n: 0, last: "", ts: now, un: 0, on: now }; chats.unshift(c); fb.tmpChats[cid] = c; }
+    c.last = fbLabel(it); c.ts = now; c.on = now; c.un = open ? 0 : (c.un || 0) + 1;
+    chats.sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+    var tmp = { id: "g" + it.mt, f: "g", t: it.k ? "" : String(it.t || ""), k: it.k || "", mt: Number(it.mt) || 0, ts: now, fid: "", dur: 0, tmpAt: now };
+    (fb.tmpIn[cid] = fb.tmpIn[cid] || []).push(tmp);
+    lastUnread = chats.reduce(function (a, x) { return a + (x.un || 0); }, 0);
+    D.title = (lastUnread ? "(" + lastUnread + ") " : "") + "SEVEN · Оператор";
+    if (!open) notify();
+    renderList();
+    if (cid === cur) { renderThread(); renderHead(); if (open) markRead(cid); }
+  }
+  // временные (мгновенные) сообщения — пока скрипт не прислал настоящие (до минуты)
+  function fbTmp(cid, list) {
+    var ids = {}, now = Date.now();
+    list.forEach(function (x) { ids[x.id] = 1; });
+    fb.tmpIn[cid] = (fb.tmpIn[cid] || []).filter(function (x) { return !ids[x.id] && now - x.tmpAt < 60e3; });
+    return fb.tmpIn[cid];
+  }
+  function fbKeepChats(list) {
+    var now = Date.now(), have = {};
+    list.forEach(function (c) { have[c.cid] = 1; });
+    Object.keys(fb.tmpChats).forEach(function (cid) {
+      var c = fb.tmpChats[cid];
+      if (have[cid] || now - c.ts > 60e3) delete fb.tmpChats[cid]; else list.unshift(c);
+    });
+    return list;
+  }
+  function fbPut(path, val) {
+    if (!fb.on && !ls("op_fb_rt")) return Promise.resolve(false);
+    return fbAuth().then(function () { return fetch(fbUrl(path), { method: val === null ? "DELETE" : "PUT", body: val === null ? undefined : JSON.stringify(val) }).then(function (r) { return r.ok; }); }).catch(function () { return false; });
+  }
+  var TS = { ".sv": "timestamp" };
+  // ответ оператора — гостю сразу (скрипт получает тот же ответ с той же меткой — без дубля)
+  function fbReply(p) {
+    if (!fb.on || /^\//.test(p.t)) return;
+    var q = p.replyId ? thread.filter(function (x) { return x.id === p.replyId && x.f === "g" && x.mt; })[0] : null;
+    var d = { t: p.t.slice(0, 3000), lid: p.id, ts: TS };
+    if (q) d.q = q.mt;
+    fbPut("g/" + p.cid + "/r/" + p.id, d).then(function (ok) { if (ok && p.pending) { p.fast = true; renderThread(); } });
+    fb.tyAt = 0; fbPut("g/" + p.cid + "/ty", null);
+  }
+  function fbTyping() {
+    if (!fb.on || !cur || Date.now() - fb.tyAt < 2500) return;
+    fb.tyAt = Date.now(); fbPut("g/" + cur + "/ty", TS);
+  }
+  // старое из «входящих» убираем раз в сутки (там только копии — всё хранится в скрипте)
+  function fbClean() {
+    if (Number(ls("op_fb_clean") || 0) > Date.now() - 86400e3) return;
+    ls("op_fb_clean", String(Date.now()));
+    fbAuth().then(function () {
+      return fetch(fbUrl("in", 'orderBy="ts"&endAt=' + (Date.now() - 2 * 86400e3) + "&limitToFirst=500")).then(fbJson);
+    }).then(function (old) {
+      var upd = {}; Object.keys(old || {}).forEach(function (k) { upd[k] = null; });
+      if (Object.keys(upd).length) return fetch(fbUrl("in"), { method: "PATCH", body: JSON.stringify(upd) });
+    }).catch(function () {});
+  }
+
   // ── пауза между попытками, которую можно прервать: вернулся в приложение / появился интернет
   var wakeFn = null, lastOkAt = 0;
   function nap(ms) { return new Promise(function (res) { var t = setTimeout(done, ms); function done() { clearTimeout(t); wakeFn = null; res(); } wakeFn = done; }); }
@@ -504,6 +629,7 @@ textarea::placeholder{color:#a1a1a6}
     if (h) open(decodeURIComponent(h), true);
     loop();
     loadQA();
+    if (ls("op_fb_rt")) fbStart(); else fbConn();
   }
 
   // ── приём: «длинный» запрос висит, пока не появится новое (как в Telegram)
@@ -533,7 +659,7 @@ textarea::placeholder{color:#a1a1a6}
   function logoutLocal() { ls("op_token", null); ls("op_cache", null); code = ""; }
   function conn(ok, tg) {
     var c = $("conn");
-    c.className = "conn" + (ok ? "" : " bad");
+    c.className = "conn" + (ok ? "" : " bad") + (fb.on ? " fast" : "");
     c.textContent = ok ? (tg === false ? "Онлайн · Telegram-бот не подключён" : "Онлайн · синхронно с Telegram") : (navigator.onLine === false ? "Нет интернета — ждём…" : "Нет связи — переподключаемся…");
   }
   function refresh() {
@@ -549,7 +675,7 @@ textarea::placeholder{color:#a1a1a6}
   function handle(r, reqCid) {
     if (r.ver) ver = Math.max(ver, r.ver);
     if (reqCid && r.guest) gx[reqCid] = r.guest;
-    chats = visibleChats(r.chats);
+    chats = fbKeepChats(visibleChats(r.chats));
     var un = chats.reduce(function (a, c) { return a + (c.un || 0); }, 0);
     if (lastUnread >= 0 && un > lastUnread) notify();
     lastUnread = un;
@@ -591,6 +717,7 @@ textarea::placeholder{color:#a1a1a6}
       try { var n = new Notification(title(c), { body: c.last, tag: c.cid }); n.onclick = function () { window.focus(); open(c.cid); n.close(); }; } catch (e) {}
     }
   }
+  $("conn").onclick = function () { if (fb.on) toast("Мгновенный режим включён ⚡"); else fbLogin(); };
   $("bell").onclick = function () {
     beep();
     if (!window.Notification) return toast("Браузер не умеет уведомления — будет только звук");
@@ -684,6 +811,7 @@ textarea::placeholder{color:#a1a1a6}
     if (c) c.un = 0;
     if (readSent[cid] && Date.now() - readSent[cid] < 1500) return;
     readSent[cid] = Date.now();
+    fbPut("g/" + cid + "/rd", TS);
     api({ action: "opPanelRead", cid: cid }).catch(function () {});
   }
   $("back").onclick = function () { $("app").classList.remove("open"); cur = null; $("insp").classList.add("hidden"); history.replaceState(null, "", location.pathname); renderList(); };
@@ -728,6 +856,7 @@ textarea::placeholder{color:#a1a1a6}
     if (on && !confirm("Заблокировать «" + (c ? title(c) : "гостя") + "»?\nЕго сообщения больше не будут приходить — ни сюда, ни в Telegram. Блок по ID телефона (и по номеру, если он известен). Снять можно в любой момент.")) return;
     if (c) c.bl = on ? 1 : 0;
     renderList(); renderHead();
+    fbPut("g/" + cid + "/blk", on ? true : null);
     api({ action: "opPanelBlock", cid: cid, on: on ? 1 : 0 }).then(function (r) { if (r && r.ok) toast(on ? "Гость заблокирован" : "Гость разблокирован"); else toast("Не получилось — нет связи"); }).catch(function () { toast("Нет связи"); });
   }
   function li(ic, k, v) { return '<div class="li">' + ic + '<span class="k">' + k + '</span><span class="v">' + esc(v) + "</span></div>"; }
@@ -778,7 +907,7 @@ textarea::placeholder{color:#a1a1a6}
   $("inspBtn").onclick = toggleInsp;
 
   // ── переписка
-  function all() { return thread.concat(pending.filter(function (p) { return p.cid === cur; })); }
+  function all() { return thread.concat(cur ? fbTmp(cur, thread) : [], pending.filter(function (p) { return p.cid === cur; })); }
   function atBottom() { var m = $("msgs"); return m.scrollHeight - m.scrollTop - m.clientHeight < 120; }
   function scrollEnd(force) { var m = $("msgs"); if (force || atBottom()) m.scrollTop = m.scrollHeight; }
   function renderThread() {
@@ -811,7 +940,7 @@ textarea::placeholder{color:#a1a1a6}
   function bubble(it) {
     var out = it.f === "o", cls = "m " + (out ? "out" : "in") + (it.k === "vn" ? " vn" : "") + (it.pending ? " pend" : "") + (it.failed ? " fail" : "");
     var q = it.q ? '<div class="q" data-to="' + esc(it.q.id || "") + '"><b>' + esc(it.q.who === "Вы" ? (out ? "Вы" : "Вы") : it.q.who === "Гость" ? "Гость" : it.q.who) + "</b><span>" + esc(it.q.t) + "</span></div>" : "";
-    var tick = out ? '<span class="tk">' + (it.pending ? CLOCK : it.seen ? TICK2 : TICK1) + "</span>" : "";
+    var tick = out ? '<span class="tk">' + (it.pending && !it.fast ? CLOCK : it.seen ? TICK2 : TICK1) + "</span>" : "";
     var meta = '<span class="meta">' + (it.ed ? "изменено " : "") + hm(it.ts) + tick + "</span>";
     var body;
     if (it.k === "vn") {
@@ -952,7 +1081,7 @@ textarea::placeholder{color:#a1a1a6}
   var txt = $("txt");
   function grow() { txt.style.height = "auto"; txt.style.height = Math.min(180, txt.scrollHeight) + "px"; }
   function syncSend() { $("send").classList.toggle("on", !!txt.value.trim()); }
-  txt.addEventListener("input", function () { grow(); syncSend(); });
+  txt.addEventListener("input", function () { grow(); syncSend(); fbTyping(); });
   txt.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendNow(); } });
   $("send").onclick = function () { sendNow(); txt.focus(); };
   // textArg — готовый текст (быстрая кнопка, анкета); delay — «Отменить» в течение пары секунд
@@ -970,6 +1099,7 @@ textarea::placeholder{color:#a1a1a6}
     return p;
   }
   function deliver(p) {
+    if (!p.tries) fbReply(p);
     api({ action: "opPanelSend", cid: p.cid, text: p.t, replyId: p.replyId, cmid: p.id }, 25000).then(function (r) {
       // неизвестная /команда — не отправляем, показываем список команд
       if (r && r.err === "cmd") { pending = pending.filter(function (x) { return x !== p; }); renderThread(); cmdError(r.help || "Не знаю такую команду", p); return; }
