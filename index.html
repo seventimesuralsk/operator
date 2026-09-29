@@ -149,7 +149,15 @@ kbd{font:500 11px/1 -apple-system,BlinkMacSystemFont,"Inter",sans-serif;color:va
 
 /* ── ввод + быстрые кнопки */
 .comp{border-top:1px solid var(--sep);background:rgba(255,255,255,.88);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);padding:8px 16px 12px;padding-bottom:max(12px,env(safe-area-inset-bottom))}
-.qbar{max-width:780px;margin:0 auto;display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
+.qwrap{position:relative;max-width:780px;margin:0 auto}
+.qbar{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none;scroll-behavior:smooth}
+.qarr{position:absolute;top:1px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.95);box-shadow:0 1px 6px rgba(0,0,0,.16),0 0 0 .5px rgba(0,0,0,.06);color:var(--txt);display:none;align-items:center;justify-content:center;z-index:2}
+.qarr:hover{background:#fff;color:var(--acc)}
+.qarr.l{left:-4px}.qarr.r{right:-4px}
+.qwrap.cl .qarr.l,.qwrap.cr .qarr.r{display:flex}
+.qwrap.cl::before,.qwrap.cr::after{content:"";position:absolute;top:0;bottom:10px;width:44px;pointer-events:none;z-index:1}
+.qwrap.cl::before{left:0;background:linear-gradient(90deg,rgba(255,255,255,.95),rgba(255,255,255,0))}
+.qwrap.cr::after{right:0;background:linear-gradient(270deg,rgba(255,255,255,.95),rgba(255,255,255,0))}
 .qbar::-webkit-scrollbar{display:none}
 .chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:16px;background:var(--fill2);font-size:13px;font-weight:500;white-space:nowrap;color:var(--txt);transition:background .15s,transform .1s;flex-shrink:0}
 .chip:hover{background:var(--fill)}
@@ -206,6 +214,36 @@ textarea::placeholder{color:#a1a1a6}
 /* ── окна (sheet), меню, подсказки */
 .sov{position:fixed;inset:0;background:rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;z-index:70;padding:16px;animation:fade .2s ease}
 @keyframes fade{from{opacity:0}}
+.sheet.wide{width:min(860px,100%)}
+.mp-top{position:sticky;top:-14px;background:var(--side);margin:-14px -16px 0;padding:14px 16px 10px;z-index:3;border-bottom:1px solid var(--sep)}
+.mp-s{margin-top:10px;background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.08)}
+.mp-cats{display:flex;gap:6px;overflow-x:auto;margin-top:10px;scrollbar-width:none}
+.mp-cats::-webkit-scrollbar{display:none}
+.mp-cats button{height:30px;padding:0 12px;border-radius:15px;background:#fff;font-size:13px;font-weight:500;white-space:nowrap;box-shadow:0 0 0 .5px rgba(0,0,0,.1);flex-shrink:0}
+.mp-cats button:hover{color:var(--acc)}
+.mp-cat{font-size:12px;font-weight:600;color:var(--sub);margin:18px 4px 8px;text-transform:uppercase;letter-spacing:.04em}
+.mp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.mp-it{background:#fff;border-radius:14px;overflow:hidden;box-shadow:var(--sh1);cursor:pointer;position:relative;text-align:left;transition:box-shadow .15s,transform .1s}
+.mp-it:active{transform:scale(.98)}
+.mp-it img,.mp-it .ph{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#f2f2f7}
+.mp-it .nm{font-size:13px;font-weight:600;padding:8px 10px 0;line-height:1.3;height:42px;overflow:hidden}
+.mp-it .pr{font-size:13px;color:var(--sub);padding:2px 10px 10px}
+.mp-it.on{box-shadow:0 0 0 2.5px var(--acc),var(--sh1)}
+.mp-it .ck{position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.92);border:1.5px solid rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;color:#fff}
+.mp-it.on .ck{background:var(--acc);border-color:var(--acc)}
+.mp-it.off{opacity:.45}
+.mp-it .qty{position:absolute;left:8px;top:8px;display:none;align-items:center;background:rgba(255,255,255,.95);border-radius:9px;box-shadow:0 1px 4px rgba(0,0,0,.15);overflow:hidden}
+.mp-it.on .qty{display:flex}
+.mp-it .qty button{width:28px;height:28px;font-size:16px}.mp-it .qty span{min-width:18px;text-align:center;font-weight:600;font-size:13px}
+.feed .ev{display:flex;gap:10px;align-items:flex-start;padding:9px 14px;border-top:1px solid var(--sep);font-size:13px;line-height:1.35}
+.feed .ev:first-child{border-top:none}
+.feed .ev i{font-style:normal;width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px}
+.feed .ev b{font-weight:500}.feed .ev small{display:block;color:var(--sub);font-size:11px;margin-top:1px}
+.live{display:inline-flex;align-items:center;gap:5px;color:var(--green);font-weight:600;text-transform:none;letter-spacing:0}
+.live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.6s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.blk{font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;background:rgba(255,59,48,.12);color:var(--red);flex-shrink:0}
+.li.ok,.li.ok svg{color:var(--green)}
 .sheet{width:min(480px,100%);max-height:min(88vh,760px);display:flex;flex-direction:column;background:#fff;border-radius:18px;box-shadow:var(--sh2);overflow:hidden;animation:rise .28s var(--ease)}
 @keyframes rise{from{transform:translateY(24px) scale(.98);opacity:0}}
 .sh-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--sep)}
@@ -315,7 +353,7 @@ textarea::placeholder{color:#a1a1a6}
     <div class="msgs hidden" id="msgs"><div class="wrap" id="wrap"></div></div>
     <button class="down hidden" id="down" aria-label="Вниз"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
     <div class="comp hidden" id="comp">
-      <div class="qbar" id="qbar"></div>
+      <div class="qwrap" id="qwrap"><button class="qarr l" id="qL" aria-label="Влево"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="qbar" id="qbar"></div><button class="qarr r" id="qR" aria-label="Вправо"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button></div>
       <div class="comp-in">
         <button class="plus" id="plus" title="Действия" aria-label="Действия"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
         <div class="field">
@@ -361,6 +399,10 @@ textarea::placeholder{color:#a1a1a6}
     trash: svg('<path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/>'),
     keys: svg('<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M7.5 14h9"/>'),
     close: svg('<path d="M18 6 6 18M6 6l12 12"/>'),
+    block: svg('<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>'),
+    unlock: svg('<rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 7.6-1.7"/>'),
+    search: svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', 16),
+    check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
     empty: svg('<path d="M20.5 12a8.5 8.5 0 0 1-12.6 7.4L3.5 20.5l1.1-4.2A8.5 8.5 0 1 1 20.5 12z"/>', 44)
   };
   var MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent), ALT = MAC ? "⌥" : "Alt+", MOD = MAC ? "⌘" : "Ctrl+";
@@ -386,7 +428,9 @@ textarea::placeholder{color:#a1a1a6}
     return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
   }
   function listTime(ts) { var d = new Date(ts); return d.toDateString() === new Date().toDateString() ? hm(ts) : d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" }); }
-  function title(c) { return "Гость №" + (c.n || "?") + (c.name ? " · " + c.name : ""); }
+  // знакомый гость — по имени; новый — «Гость №N»
+  function title(c) { return c && c.name ? c.name : "Гость №" + ((c && c.n) || "?"); }
+  function avaTxt(c) { return c && c.name ? String(c.name).trim().charAt(0).toUpperCase() : String((c && c.n) || "?"); }
   function color(n) { var c = COLORS[(Number(n) || 0) % COLORS.length]; return "linear-gradient(145deg," + c[0] + "," + c[1] + ")"; }
   function online(c) { return c && c.on && Date.now() - c.on < 70e3; }
   // уведомление внизу, как на Mac; можно с кнопкой («Отменить»)
@@ -501,8 +545,10 @@ textarea::placeholder{color:#a1a1a6}
   var hidden = {};
   try { hidden = JSON.parse(localStorage.getItem("op_hidden") || "{}") || {}; } catch (e) { hidden = {}; }
   function visibleChats(list) { return (list || []).filter(function (c) { return !(hidden[c.cid] && c.ts <= hidden[c.cid]); }); }
+  var gx = {}; // по открытому чату: корзина, профиль и живые действия гостя
   function handle(r, reqCid) {
     if (r.ver) ver = Math.max(ver, r.ver);
+    if (reqCid && r.guest) gx[reqCid] = r.guest;
     chats = visibleChats(r.chats);
     var un = chats.reduce(function (a, c) { return a + (c.un || 0); }, 0);
     if (lastUnread >= 0 && un > lastUnread) notify();
@@ -564,8 +610,8 @@ textarea::placeholder{color:#a1a1a6}
     if (!arr.length) html = '<div class="empty">' + ICO.empty + (chats.length ? (f ? "Ничего не найдено" : seg === "un" ? "Все сообщения прочитаны" : "Сейчас никого нет на сайте") : "Пока никто не написал.<br>Как только гость напишет в SEVEN AI — чат появится здесь.") + "</div>";
     else html = arr.map(function (c) {
       return '<div class="row' + (c.cid === cur ? " sel" : "") + (c.un ? " un" : "") + '" data-cid="' + esc(c.cid) + '">' +
-        '<div class="ava" style="background:' + color(c.n) + '">' + esc(c.n || "?") + (online(c) ? '<span class="dot"></span>' : "") + "</div>" +
-        '<div class="r-main"><div class="r-top"><span class="r-name">' + esc(title(c)) + '</span>' + (c.lang ? '<span class="lg" title="' + esc(LANG[c.lang] || "") + '">' + esc(LANG_SHORT[c.lang] || "") + "</span>" : "") + '<span class="r-time">' + listTime(c.ts) + "</span></div>" +
+        '<div class="ava" style="background:' + color(c.n) + '">' + esc(avaTxt(c)) + (online(c) ? '<span class="dot"></span>' : "") + "</div>" +
+        '<div class="r-main"><div class="r-top"><span class="r-name">' + esc(title(c)) + '</span>' + (c.bl ? '<span class="blk">БЛОК</span>' : "") + (c.lang ? '<span class="lg" title="' + esc(LANG[c.lang] || "") + '">' + esc(LANG_SHORT[c.lang] || "") + "</span>" : "") + '<span class="r-time">' + listTime(c.ts) + "</span></div>" +
         '<div class="r-bot"><span class="r-sub">' + esc(lastPreview(c.last)) + "</span>" + (c.un ? '<span class="badge">' + c.un + "</span>" : "") + "</div></div></div>";
     }).join("");
     if (box._html !== html) { box._html = html; box.innerHTML = html; }
@@ -625,6 +671,7 @@ textarea::placeholder{color:#a1a1a6}
     if (!fromHash) history.replaceState(null, "", "#" + encodeURIComponent(cid));
     $("app").classList.add("open");
     ["head", "msgs", "comp"].forEach(function (id) { $(id).classList.remove("hidden"); });
+    setTimeout(qArrows, 0);
     $("noChat").classList.add("hidden");
     renderList(); renderHead();
     if (thread.length) { renderThread(); scrollEnd(true); } // из памяти — сразу
@@ -657,23 +704,41 @@ textarea::placeholder{color:#a1a1a6}
   function renderHead() {
     var c = chatBy(cur);
     if (!cur) return;
-    $("hAva").style.background = color(c && c.n); $("hAva").textContent = c ? c.n || "?" : "?";
+    $("hAva").style.background = color(c && c.n); $("hAva").textContent = avaTxt(c);
     $("hName").textContent = c ? title(c) : cur;
     var sub = $("hSub");
-    sub.className = online(c) ? "on" : ""; sub.textContent = status(c);
+    sub.className = online(c) && !(c && c.bl) ? "on" : ""; sub.textContent = (c && c.bl ? "заблокирован · " : "") + status(c);
     $("inspBtn").classList.toggle("on", inspOn);
     renderInsp(c);
   }
   function waNum(p) { var d = String(p || "").replace(/\D/g, ""); if (d.length === 11 && d[0] === "8") d = "7" + d.slice(1); if (d.length === 10) d = "7" + d; return d.length === 11 ? d : ""; }
+  var EV = {
+    add: ["#34c759", "+", function (e) { return "Добавил в корзину: <b>" + esc(e.n) + "</b>" + (e.q > 1 ? " ×" + e.q : ""); }],
+    rem: ["#ff3b30", "−", function (e) { return "Убрал из корзины: <b>" + esc(e.n || "блюдо") + "</b>"; }],
+    view: ["#0a84ff", "👁", function (e) { return "Смотрит блюдо: <b>" + esc(e.n) + "</b>"; }],
+    cart: ["#ff9500", "🛒", function () { return "Открыл корзину"; }],
+    tab: ["#8e8e93", "↦", function (e) { return "Перешёл: <b>" + esc(e.n) + "</b>"; }],
+    book: ["#af52de", "📅", function () { return "Открыл бронь столика"; }],
+    order: ["#34c759", "✓", function (e) { return "<b>Отправил заказ</b>" + (e.n ? " · " + Number(e.n).toLocaleString("ru") + " ₸" : ""); }],
+    open: ["#8e8e93", "→", function () { return "Зашёл на сайт"; }]
+  };
+  function evHtml(e) { var d = EV[e.t]; if (!d) return ""; return '<div class="ev"><i style="background:' + d[0] + '22;color:' + d[0] + '">' + d[1] + "</i><div>" + d[2](e) + "<small>" + hm(e.ts) + "</small></div></div>"; }
+  function blockGuest(cid, on) {
+    var c = chatBy(cid);
+    if (on && !confirm("Заблокировать «" + (c ? title(c) : "гостя") + "»?\nЕго сообщения больше не будут приходить — ни сюда, ни в Telegram. Блок по ID телефона (и по номеру, если он известен). Снять можно в любой момент.")) return;
+    if (c) c.bl = on ? 1 : 0;
+    renderList(); renderHead();
+    api({ action: "opPanelBlock", cid: cid, on: on ? 1 : 0 }).then(function (r) { if (r && r.ok) toast(on ? "Гость заблокирован" : "Гость разблокирован"); else toast("Не получилось — нет связи"); }).catch(function () { toast("Нет связи"); });
+  }
   function li(ic, k, v) { return '<div class="li">' + ic + '<span class="k">' + k + '</span><span class="v">' + esc(v) + "</span></div>"; }
   // ── карточка гостя справа (как «Контакты»): телефон, заказы, корзина, что смотрел
   function renderInsp(c) {
     var el = $("insp");
     el.classList.toggle("hidden", !(inspOn && cur));
     if (!inspOn || !cur) return;
-    var x = (c && c.ctx) || {}, ph = x.ph || "", wn = waNum(ph), h = "";
+    var g = gx[cur] || {}, x = g.ctx || {}, has = !!g.ctx, ph = x.ph || "", wn = waNum(ph), h = "";
     if (innerWidth <= 1180) h += '<div style="display:flex;justify-content:flex-end;margin:-8px -4px 0"><button class="ic" data-x="close" aria-label="Закрыть">' + ICO.close + "</button></div>";
-    h += '<div class="who"><div class="ava xl" style="background:' + color(c && c.n) + '">' + esc(c ? c.n || "?" : "?") + "</div><b>" + esc(c ? title(c) : "Гость") + '</b><small class="' + (online(c) ? "on" : "") + '">' + esc(status(c)) + "</small></div>";
+    h += '<div class="who"><div class="ava xl" style="background:' + color(c && c.n) + '">' + esc(avaTxt(c)) + "</div><b>" + esc(c ? title(c) : "Гость") + '</b><small class="' + (online(c) && !(c && c.bl) ? "on" : "") + '">' + esc((c && c.bl ? "🚫 заблокирован · " : "") + (c && c.name ? "Гость №" + (c.n || "?") + " · " : "") + status(c)) + "</small></div>";
     h += '<div class="acts">' +
       '<a class="act' + (ph ? "" : " off") + '" href="' + (ph ? "tel:" + esc(ph.replace(/[^\d+]/g, "")) : "#") + '">' + ICO.phone + "Позвонить</a>" +
       '<a class="act' + (wn ? "" : " off") + '" href="' + (wn ? "https://wa.me/" + wn : "#") + '" target="_blank" rel="noopener">' + ICO.wa + "WhatsApp</a>" +
@@ -681,7 +746,7 @@ textarea::placeholder{color:#a1a1a6}
       '<button class="act" data-x="book">' + ICO.cal22 + "Бронь</button></div>";
     h += '<div class="gh">Гость</div><div class="grp">' +
       li(ICO.person, "Имя", x.nm || (c && c.name) || "—") + li(ICO.phoneS, "Телефон", ph || "—") +
-      li(ICO.repeat, "Заказов", x.orders ? String(x.orders) : c && c.ctx ? "новый гость" : "—") +
+      li(ICO.repeat, "Заказов", x.orders ? String(x.orders) : has ? "новый гость" : "—") +
       li(ICO.globe, "Язык", c && c.lang ? LANG[c.lang] || c.lang : "—") +
       li(ICO.pin, "Филиал", c && c.br ? BR[c.br] || c.br : x.br ? BR[x.br] || x.br : "—") +
       (x.seen ? li(ICO.eye, "Смотрел", x.seen) : "") + "</div>";
@@ -690,10 +755,16 @@ textarea::placeholder{color:#a1a1a6}
       h += '<div class="li cart">' + x.cart.map(function (i) { return '<div class="ci"><span>' + esc(i[0]) + "</span><span>×" + esc(i[1]) + "</span></div>"; }).join("") + "</div>";
       if (x.sum) h += '<div class="li tot"><span class="k" style="color:inherit">Итого</span><span class="v">' + Number(x.sum).toLocaleString("ru") + " ₸</span></div>";
       h += '<div class="li btn" data-x="order">' + ICO.bag + "Собрать заказ из корзины</div>";
-    } else h += '<div class="none">' + (c && c.ctx ? "Корзина пустая" : "Появится, когда гость напишет с сайта") + "</div>";
+    } else h += '<div class="none">' + (has ? "Корзина пустая" : "Появится, когда гость напишет с сайта") + "</div>";
+    h += "</div>";
+    // что гость делает на сайте прямо сейчас
+    var act = (g.act || []).slice(-8).reverse();
+    h += '<div class="gh">' + (online(c) ? '<span class="live">Сейчас на сайте</span>' : "Действия на сайте") + '</div><div class="grp feed">';
+    h += act.length ? act.map(evHtml).join("") : '<div class="none">Здесь будет видно, что гость смотрит и кладёт в корзину</div>';
     h += "</div>";
     h += '<div class="gh">Действия</div><div class="grp">' +
       '<div class="li btn" data-x="copy">' + ICO.copy + "Скопировать ID гостя</div>" +
+      (c && c.bl ? '<div class="li btn ok" data-x="unblock">' + ICO.unlock + "Разблокировать</div>" : '<div class="li btn danger" data-x="block">' + ICO.block + "Заблокировать гостя</div>") +
       '<div class="li btn danger" data-x="del">' + ICO.trash + "Удалить чат</div></div>";
     if (el._html !== h) { el._html = h; el.innerHTML = h; }
   }
@@ -701,6 +772,7 @@ textarea::placeholder{color:#a1a1a6}
     var a = e.target.closest("[data-x]"); if (!a) return;
     var x = a.getAttribute("data-x");
     if (x === "order") orderSheet(); else if (x === "book") bookSheet(); else if (x === "copy") $("copyId").click(); else if (x === "del") { if (cur) deleteChat(cur); } else if (x === "close") toggleInsp();
+    else if (x === "block" || x === "unblock") blockGuest(cur, x === "block");
   };
   function toggleInsp() { inspOn = !inspOn; if (innerWidth > 1180) ls("op_insp", inspOn ? "1" : "0"); renderHead(); if (!cur) $("insp").classList.add("hidden"); }
   $("inspBtn").onclick = toggleInsp;
@@ -923,7 +995,12 @@ textarea::placeholder{color:#a1a1a6}
     ov.querySelector('[data-s="x"]').onclick = closeSheet;
     ov.querySelector('[data-s="ok"]').onclick = function () { if (!o.onOk || o.onOk(ov) !== false) closeSheet(); };
     ov.addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); ov.querySelector('[data-s="ok"]').click(); } });
+    if (o.wide) ov.querySelector(".sheet").classList.add("wide");
+    sheetCancel = o.onCancel || null;
+    if (o.onCancel) ov.querySelector('[data-s="x"]').onclick = function () { closeSheet(); o.onCancel(); };
     ov.addEventListener("click", function (e) {
+      var ab = e.target.closest("[data-act]");
+      if (ab && o.onAct) o.onAct(ab.getAttribute("data-act"), ov);
       var sb = e.target.closest(".seg[data-n] button");
       if (sb) { [].forEach.call(sb.parentNode.children, function (x) { x.classList.toggle("on", x === sb); }); ov.querySelectorAll("[data-for]").forEach(function (f) { var g = f.getAttribute("data-for").split(":"); if (g[0] === sb.parentNode.getAttribute("data-n")) f.classList.toggle("hidden", g[1] !== sb.getAttribute("data-v")); }); }
       var st = e.target.closest(".step button");
@@ -932,6 +1009,7 @@ textarea::placeholder{color:#a1a1a6}
     var f = ov.querySelector("[autofocus]"); if (f) setTimeout(function () { f.focus(); try { if (/^(text|tel|search)?$/.test(f.type || "") || f.tagName === "TEXTAREA") f.setSelectionRange(f.value.length, f.value.length); } catch (se) {} }, 60);
     return ov;
   }
+  var sheetCancel = null;
   function closeSheet() { var s = $("sov"); if (s) s.remove(); }
   function segHtml(n, opts, v) { return '<div class="seg" data-n="' + n + '">' + opts.map(function (o) { return '<button type="button" data-v="' + o[0] + '"' + (o[0] === v ? ' class="on"' : "") + ">" + o[1] + "</button>"; }).join("") + "</div>"; }
   function stepHtml(n, v, lo, hi) { return '<div class="step" data-n="' + n + '" data-min="' + lo + '" data-max="' + hi + '"><button type="button" data-d="-1">−</button><span>' + v + '</span><button type="button" data-d="1">+</button></div>'; }
@@ -954,11 +1032,11 @@ textarea::placeholder{color:#a1a1a6}
   // ── собрать заказ за гостя: он получит анкету и сам отправит её в WhatsApp
   function orderSheet(pre) {
     if (!cur) return toast("Сначала откройте чат");
-    var c = chatBy(cur) || {}, x = c.ctx || {}, v = pre || {};
+    var c = chatBy(cur) || {}, x = (gx[cur] || {}).ctx || {}, v = pre || {};
     var items = v.items != null ? v.items : (x.cart || []).map(function (i) { return i[0] + (i[1] > 1 ? " ×" + i[1] : ""); }).join(", ");
     var mode = v.mode || "d";
     sheet({ title: "Собрать заказ", ok: "Отправить", body:
-      '<div class="gh">Состав</div><div class="grp"><div class="f"><textarea data-n="items" autofocus placeholder="маргарита, кола 2, фри">' + esc(items) + "</textarea></div></div>" +
+      '<div class="gh">Состав</div><div class="grp"><div class="f"><textarea data-n="items" autofocus placeholder="маргарита, кола 2, фри">' + esc(items) + '</textarea></div><div class="li btn" data-act="pick">' + ICO.fork + "Выбрать из меню</div></div>" +
       '<div class="hint">Через запятую, количество — числом: «кола 2». Цены гость увидит свои, из меню своего филиала.</div>' +
       '<div class="gh">Получение</div><div class="grp"><div class="f">' + segHtml("mode", [["d", "Доставка"], ["s", "Самовывоз"]], mode) + "</div>" +
       '<div class="f' + (mode === "d" ? "" : " hidden") + '" data-for="mode:d"><label>Адрес</label><input data-n="addr" placeholder="Досмухамедова 12, кв 5" value="' + esc(v.addr || "") + '"></div>' +
@@ -968,7 +1046,16 @@ textarea::placeholder{color:#a1a1a6}
       '<div class="gh">Гость</div><div class="grp"><div class="f"><label>Имя</label><input data-n="name" value="' + esc(v.name != null ? v.name : x.nm || c.name || "") + '" placeholder="впишет сам"></div>' +
       '<div class="f"><label>Телефон</label><input data-n="phone" type="tel" value="' + esc(v.phone != null ? v.phone : x.ph || "") + '" placeholder="впишет сам"></div>' +
       '<div class="f"><label>Пожелания</label><input data-n="note" value="' + esc(v.note || "") + '" placeholder="без лука, позвонить заранее"></div></div>' +
-      '<div class="hint">Гость получит анкету с ценами и итогом, проверит и сам отправит заказ в WhatsApp одной кнопкой. Пустые поля он заполнит сам. ' + MOD + "Enter — отправить.</div>",
+      '<div class="hint">Гость получит анкету с ценами и итогом и сам отправит её в WhatsApp. Всё, что вы заполнили, он изменить не сможет — впишет только пустые поля. ' + MOD + "Enter — отправить.</div>",
+      onAct: function (a, ov) {
+        if (a !== "pick") return;
+        var keep = vals(ov);
+        menuPicker({ mode: "order", title: "Добавить в заказ", ok: "Добавить", onPick: function (arr) {
+          var add = arr.map(function (x) { return x.name + (x.qty > 1 ? " ×" + x.qty : ""); }).join(", ");
+          keep.items = keep.items ? keep.items.replace(/[,\s]+$/, "") + ", " + add : add;
+          setTimeout(function () { orderSheet(keep); }, 30);
+        }, onCancel: function () { setTimeout(function () { orderSheet(keep); }, 30); } });
+      },
       onOk: function (ov) {
         var d = vals(ov);
         if (!d.items) { shake(ov); return false; }
@@ -987,7 +1074,7 @@ textarea::placeholder{color:#a1a1a6}
   function isoDay(add) { var d = new Date(Date.now() + (add || 0) * 864e5); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
   function bookSheet(pre) {
     if (!cur) return toast("Сначала откройте чат");
-    var c = chatBy(cur) || {}, x = c.ctx || {}, v = pre || {};
+    var c = chatBy(cur) || {}, x = (gx[cur] || {}).ctx || {}, v = pre || {};
     var br = v.br || (BR[c.br] ? c.br : BR[x.br] ? x.br : "samal");
     sheet({ title: "Собрать бронь", ok: "Отправить", body:
       '<div class="gh">Когда</div><div class="grp"><div class="f"><label>Дата</label><input data-n="date" type="date" min="' + isoDay(0) + '" value="' + esc(v.date || isoDay(0)) + '"></div>' +
@@ -1009,14 +1096,80 @@ textarea::placeholder{color:#a1a1a6}
         if (p) p.redo = function () { bookSheet(d); };
       } });
   }
-  // ── блюдо / раздел меню карточкой
-  function dishSheet() {
+  // ── меню, как на сайте: выбрать блюда карточками или добавить в заказ
+  var menuCache = {};
+  function loadMenu(br) {
+    var m = menuCache[br];
+    if (m && Date.now() - m.t < 300e3) return Promise.resolve(m.d);
+    return fetch(API + "?action=getMenu&branch=" + encodeURIComponent(br), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.categories) throw new Error("menu");
+      menuCache[br] = { t: Date.now(), d: d }; return d;
+    });
+  }
+  function photoUrl(e, w) {
+    if (!e || !String(e).trim()) return "";
+    e = String(e).trim();
+    var m = e.match(/\/d\/([a-zA-Z0-9_-]+)/) || e.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (m) return "https://drive.google.com/thumbnail?id=" + m[1] + "&sz=w400";
+    if (/^os\.md\//i.test(e)) return "https://" + e;
+    if (e.indexOf("res.cloudinary.com") >= 0 && e.indexOf("f_auto") < 0) { var k = e.indexOf("/upload/"); if (k >= 0) return e.slice(0, k + 8) + "f_auto,q_auto:low,w_" + (w || 300) + "/" + e.slice(k + 8); }
+    return e;
+  }
+  function menuPicker(o) {
     if (!cur) return toast("Сначала откройте чат");
-    sheet({ title: "Блюдо из меню", ok: "Отправить", body:
-      '<div class="grp"><div class="f"><label>Блюдо</label><input data-n="d" autofocus placeholder="маргарита, пицца, цезарь"></div>' +
-      '<div class="f"><label>Свой текст</label><input data-n="t" placeholder="необязательно"></div></div>' +
-      '<div class="hint">Гость получит карточки с фото и ценой. Название раздела («пицца») — пришлёт весь раздел.</div>',
-      onOk: function (ov) { var d = vals(ov); if (!d.d) { shake(ov); return false; } sendNow("/" + d.d.replace(/\s+/g, "_") + (d.t ? " " + d.t : "")); } });
+    var c = chatBy(cur) || {}, gc = (gx[cur] || {}).ctx || {}, br = BR[c.br] ? c.br : BR[gc.br] ? gc.br : "samal", sel = {}, data = null, q = "";
+    var ov = sheet({ title: o.title || "Меню", ok: o.ok || "Отправить", wide: true, onCancel: o.onCancel,
+      body: '<div class="mp-top">' + segHtml("mbr", [["samal", "Самал"], ["skoro", "Скоробогатова"], ["abulhair", "Абулхаир"]], br) +
+        '<label class="search mp-s">' + ICO.search + '<input id="mpQ" placeholder="Поиск блюда" autocomplete="off"></label><div class="mp-cats" id="mpCats"></div></div><div id="mpList"><div class="none">Загружаем меню…</div></div>',
+      onOk: function () {
+        var arr = Object.keys(sel).map(function (k) { return sel[k]; });
+        if (!arr.length) { shake(ov); return false; }
+        o.onPick(arr);
+      } });
+    var okBtn = ov.querySelector('[data-s="ok"]'), okLabel = o.ok || "Отправить";
+    function count() { var n = Object.keys(sel).length; okBtn.textContent = okLabel + (n ? " (" + n + ")" : ""); }
+    function render() {
+      var box = ov.querySelector("#mpList"), cats = $("mpCats");
+      if (!data) return;
+      var f = q.toLowerCase(), html = "", chips = "";
+      Object.keys(data.categories).forEach(function (cat, ci) {
+        var items = data.categories[cat].filter(function (it) { return !f || String(it.name).toLowerCase().indexOf(f) >= 0; });
+        if (!items.length) return;
+        chips += '<button type="button" data-cat="' + ci + '">' + esc(cat) + "</button>";
+        html += '<div class="mp-cat" id="mpc' + ci + '">' + esc(cat) + '</div><div class="mp-grid">' + items.map(function (it) {
+          var on = sel[it.id], ph = photoUrl(it.photo, 300);
+          return '<div class="mp-it' + (on ? " on" : "") + (it.stopped ? " off" : "") + '" data-id="' + esc(it.id) + '">' + (ph ? '<img loading="lazy" alt="" src="' + esc(ph) + '">' : '<div class="ph"></div>') +
+            '<span class="ck">' + ICO.check + "</span>" + (o.mode === "order" ? '<span class="qty"><button type="button" data-d="-1">−</button><span>' + (on ? on.qty : 1) + '</span><button type="button" data-d="1">+</button></span>' : "") +
+            '<div class="nm">' + esc(it.name) + '</div><div class="pr">' + (it.stopped ? "Нет в наличии" : Number(it.price || 0).toLocaleString("ru") + " ₸") + "</div></div>";
+        }).join("") + "</div>";
+      });
+      box.innerHTML = html || '<div class="none">Ничего не найдено</div>';
+      cats.innerHTML = f ? "" : chips;
+    }
+    function load() {
+      data = null; ov.querySelector("#mpList").innerHTML = '<div class="none">Загружаем меню…</div>';
+      loadMenu(br).then(function (d) { data = d; render(); }, function () { ov.querySelector("#mpList").innerHTML = '<div class="none">Не удалось загрузить меню — проверьте интернет</div>'; });
+    }
+    ov.addEventListener("click", function (e) {
+      var sb = e.target.closest('.seg[data-n="mbr"] button');
+      if (sb) { br = sb.getAttribute("data-v"); load(); return; }
+      var cb = e.target.closest("[data-cat]");
+      if (cb) { var t = ov.querySelector("#mpc" + cb.getAttribute("data-cat")); if (t) t.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
+      var it = e.target.closest(".mp-it"); if (!it) return;
+      var id = it.getAttribute("data-id"), qb = e.target.closest(".qty button");
+      var item = null; Object.keys(data.categories).forEach(function (k) { data.categories[k].forEach(function (x) { if (String(x.id) === id) item = x; }); });
+      if (!item) return;
+      if (qb && sel[id]) { sel[id].qty = Math.max(1, Math.min(99, sel[id].qty + Number(qb.getAttribute("data-d")))); it.querySelector(".qty span").textContent = sel[id].qty; return; }
+      if (item.stopped && !sel[id]) return toast("Этого блюда сейчас нет в наличии");
+      if (sel[id]) delete sel[id]; else sel[id] = { id: String(item.id), name: item.name, qty: 1 };
+      it.classList.toggle("on", !!sel[id]); count();
+    });
+    ov.querySelector("#mpQ").addEventListener("input", function () { q = this.value.trim(); render(); });
+    setTimeout(function () { var i = ov.querySelector("#mpQ"); if (i && innerWidth > 760) i.focus(); }, 80);
+    load();
+  }
+  function dishSheet() {
+    menuPicker({ mode: "send", title: "Отправить блюда", ok: "Отправить", onPick: function (arr) { sendNow("/#" + arr.map(function (x) { return x.id; }).join(",")); } });
   }
 
   // ════ быстрые кнопки над полем ввода ════
@@ -1029,7 +1182,15 @@ textarea::placeholder{color:#a1a1a6}
       '<button class="chip pri" data-q="dish" title="Блюдо из меню карточкой">' + ICO.fork + 'Блюдо</button><span class="qsep"></span>';
     h += quickItems().map(function (q, i) { return '<button class="chip" data-k="' + esc(q.k) + '" title="Отправить гостю /' + esc(q.k) + (i < 9 ? " · " + ALT + (i + 1) : "") + '">' + q.i + esc(q.l) + (i < 9 ? "<kbd>" + ALT + (i + 1) + "</kbd>" : "") + "</button>"; }).join("");
     if ($("qbar")._html !== h) { $("qbar")._html = h; $("qbar").innerHTML = h; }
+    setTimeout(qArrows, 0);
   }
+  // колесико мыши листает кнопки вбок; стрелки ‹ › по краям
+  function qArrows() { var b = $("qbar"), w = $("qwrap"); w.classList.toggle("cl", b.scrollLeft > 4); w.classList.toggle("cr", b.scrollLeft + b.clientWidth < b.scrollWidth - 4); }
+  $("qbar").addEventListener("wheel", function (e) { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { this.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+  $("qbar").addEventListener("scroll", qArrows, { passive: true });
+  window.addEventListener("resize", qArrows);
+  $("qL").onclick = function () { $("qbar").scrollBy({ left: -260, behavior: "smooth" }); };
+  $("qR").onclick = function () { $("qbar").scrollBy({ left: 260, behavior: "smooth" }); };
   $("qbar").onclick = function (e) {
     var b = e.target.closest("button"); if (!b) return;
     var q = b.getAttribute("data-q");
@@ -1092,7 +1253,7 @@ textarea::placeholder{color:#a1a1a6}
     if (e.key === "Alt") D.body.classList.add("alt");
     var tag = (e.target && e.target.tagName) || "", typing = /INPUT|TEXTAREA|SELECT/.test(tag), mod = e.metaKey || e.ctrlKey;
     if (e.key === "Escape") {
-      if ($("sov")) return closeSheet();
+      if ($("sov")) { var oc = sheetCancel; sheetCancel = null; closeSheet(); if (oc) oc(); return; }
       if ($("menu")) return closeMenu();
       if (replyTo) return closeReply();
       if (innerWidth <= 1180 && inspOn) return toggleInsp();
