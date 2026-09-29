@@ -75,6 +75,7 @@ button{font:inherit;color:inherit;border:none;background:none;cursor:pointer;pad
 .head .t small.on{color:var(--acc)}
 .back{display:none}
 .msgs{flex:1;overflow-y:auto;padding:12px 0 8px;display:flex;flex-direction:column}
+.ctxbar{padding:8px 14px;background:#fffbea;border-bottom:1px solid #f1e3a6;font-size:13px;line-height:1.45;color:#3a3a3c}.ctxbar div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wrap{width:100%;max-width:760px;margin:0 auto;padding:0 14px;display:flex;flex-direction:column;gap:3px}
 .day{align-self:center;background:rgba(0,0,0,.22);color:#fff;font-size:.8rem;font-weight:500;padding:3px 10px;border-radius:12px;margin:10px 0 6px}
 .m{display:flex;flex-direction:column;max-width:min(480px,82%);position:relative}
@@ -187,6 +188,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
       <button class="ic" id="delChat" title="Удалить чат" aria-label="Удалить чат"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg></button>
       <button class="ic" id="copyId" title="Скопировать ID гостя" aria-label="Скопировать ID"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
     </div>
+    <div class="ctxbar hidden" id="ctxBar"></div>
     <div class="msgs hidden" id="msgs"><div class="wrap" id="wrap"></div></div>
     <button class="down hidden" id="down" aria-label="Вниз"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
     <div class="comp hidden" id="comp">
@@ -434,7 +436,7 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     if (cur === cid) {
       cur = null; thread = []; closeReply(); stopPlayer();
       $("app").classList.remove("open");
-      ["head", "msgs", "comp"].forEach(function (id) { $(id).classList.add("hidden"); });
+      ["head", "msgs", "comp", "ctxBar"].forEach(function (id) { $(id).classList.add("hidden"); });
       $("noChat").classList.remove("hidden"); $("wrap").innerHTML = ""; $("wrap")._html = "";
       history.replaceState(null, "", location.pathname);
     }
@@ -481,6 +483,16 @@ textarea{border:none;outline:none;background:none;resize:none;color:var(--txt);f
     if (c && c.lang) parts.push("язык: " + (LANG[c.lang] || c.lang));
     if (c && c.br) parts.push(BR[c.br] || c.br);
     sub.textContent = parts.join(" · ") || "гость сайта";
+    // карточка гостя: телефон, заказы, корзина, что смотрел (приходит с сайта вместе с сообщением)
+    var x = c && c.ctx, cb = $("ctxBar"), rows = [];
+    if (x) {
+      if (x.nm || x.ph) rows.push("📞 " + esc([x.nm, x.ph].filter(Boolean).join(", ")));
+      rows.push(x.orders ? "🔁 Постоянный гость · заказов: " + x.orders : "🆕 Новый гость");
+      rows.push(x.cart && x.cart.length ? "🛒 " + esc(x.cart.map(function (i) { return i[0] + " ×" + i[1]; }).join(", ")) + (x.sum ? " — " + Number(x.sum).toLocaleString("ru") + " ₸" : "") : "🛒 Корзина пустая");
+      if (x.seen) rows.push("👀 Смотрел: " + esc(x.seen));
+    }
+    cb.innerHTML = rows.map(function (r) { return "<div>" + r + "</div>"; }).join("");
+    cb.classList.toggle("hidden", !rows.length);
   }
 
   // ── переписка
