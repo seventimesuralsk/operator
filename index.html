@@ -430,8 +430,8 @@ textarea::placeholder{color:#a1a1a6}
   }
   function listTime(ts) { var d = new Date(ts); return d.toDateString() === new Date().toDateString() ? hm(ts) : d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" }); }
   // знакомый гость — по имени; новый — «Гость №N»
-  function title(c) { return c && c.name ? c.name : "Гость №" + ((c && c.n) || "?"); }
-  function avaTxt(c) { return c && c.name ? String(c.name).trim().charAt(0).toUpperCase() : String((c && c.n) || "?"); }
+  function title(c) { return c && c.name ? c.name : c && c.n ? "Гость №" + c.n : "Новый гость"; }
+  function avaTxt(c) { return c && c.name ? String(c.name).trim().charAt(0).toUpperCase() : c && c.n ? String(c.n) : "Н"; }
   function color(n) { var c = COLORS[(Number(n) || 0) % COLORS.length]; return "linear-gradient(145deg," + c[0] + "," + c[1] + ")"; }
   function online(c) { return c && c.on && Date.now() - c.on < 70e3; }
   // уведомление внизу, как на Mac; можно с кнопкой («Отменить»)
@@ -462,10 +462,12 @@ textarea::placeholder{color:#a1a1a6}
   function fbSave(a) { fb.tok = a.t; fb.exp = Date.now() + (Number(a.e) || 3600) * 1000; ls("op_fb_rt", a.r); }
   function fbAuth() {
     if (fb.tok && Date.now() < fb.exp - 120e3) return Promise.resolve(fb.tok);
+    if (fb.authP) return fb.authP; // обновление пропуска — одно на всех
     var rt = ls("op_fb_rt");
     if (!rt) return Promise.reject(new Error("login"));
-    return fetch(FB.sec + "/v1/token?key=" + FB.key, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(rt) })
-      .then(fbJson).then(function (j) { fbSave({ t: j.id_token, r: j.refresh_token, e: j.expires_in }); return fb.tok; }, function (e) { if (e.status === 400) ls("op_fb_rt", null); throw e; });
+    fb.authP = fetch(FB.sec + "/v1/token?key=" + FB.key, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(rt) })
+      .then(fbJson).then(function (j) { fb.authP = null; fbSave({ t: j.id_token, r: j.refresh_token, e: j.expires_in }); return fb.tok; }, function (e) { fb.authP = null; if (e.status === 400) ls("op_fb_rt", null); throw e; });
+    return fb.authP;
   }
   function fbLogin() {
     sheet({ title: "Мгновенный режим", ok: "Войти", body:
@@ -493,7 +495,7 @@ textarea::placeholder{color:#a1a1a6}
       es.addEventListener("patch", function (e) { fbEv(e, true); });
       es.addEventListener("auth_revoked", function () { fbStop(); fb.tok = ""; setTimeout(fbStart, 300); });
       es.addEventListener("cancel", function () { fbStop(); fb.denied = true; fbConn(); toast("Firebase: нет доступа. Проверьте email оператора в правилах базы"); });
-      es.onopen = function () { fb.on = true; fb.denied = false; fbConn(); };
+      es.onopen = function () { fb.on = true; fb.denied = false; fb.blAll = true; fbConn(); if (chats && chats.length) fbSyncBlocks(chats); };
       es.onerror = function () { fb.on = false; fbConn(); if (es.readyState === 2) { fbStop(); setTimeout(fbStart, 3000); } };
       fbClean();
     }, function () { fb.es = null; fbConn(); });
@@ -552,6 +554,22 @@ textarea::placeholder{color:#a1a1a6}
     return fbAuth().then(function () { return fetch(fbUrl(path), { method: val === null ? "DELETE" : "PUT", body: val === null ? undefined : JSON.stringify(val) }).then(function (r) { return r.ok; }); }).catch(function () { return false; });
   }
   var TS = { ".sv": "timestamp" };
+  // блок/разблок сделан в Telegram (/блок, /разблок) — переносим в Firebase, чтобы замок у гостя совпадал
+  fb.blSeen = {}; fb.blLocal = {}; fb.blAll = true;
+  function fbSyncBlocks(list) {
+    if (!fb.on) return;
+    var upd = {}, n = 0, now = Date.now();
+    list.forEach(function (c) {
+      if (!c || !/^[\w-]{1,120}$/.test(String(c.cid))) return;
+      var v = c.bl ? 1 : 0, loc = fb.blLocal[c.cid];
+      if (loc && now - loc.at < 3000 && loc.v !== v) return; // ответы, ушедшие до нажатия, ещё не знают о блоке
+      if (!fb.blAll && fb.blSeen[c.cid] === v) return;
+      fb.blSeen[c.cid] = v; upd[c.cid + "/blk"] = v ? true : null; n++;
+    });
+    fb.blAll = false;
+    if (!n) return;
+    fbAuth().then(function () { return fetch(fbUrl("g"), { method: "PATCH", body: JSON.stringify(upd) }); }).catch(function () { fb.blAll = true; });
+  }
   // ответ оператора — гостю сразу (скрипт получает тот же ответ с той же меткой — без дубля)
   function fbReply(p) {
     if (!fb.on || /^\//.test(p.t)) return;
@@ -676,6 +694,7 @@ textarea::placeholder{color:#a1a1a6}
     if (r.ver) ver = Math.max(ver, r.ver);
     if (reqCid && r.guest) gx[reqCid] = r.guest;
     chats = fbKeepChats(visibleChats(r.chats));
+    fbSyncBlocks(r.chats || []);
     var un = chats.reduce(function (a, c) { return a + (c.un || 0); }, 0);
     if (lastUnread >= 0 && un > lastUnread) notify();
     lastUnread = un;
@@ -809,9 +828,9 @@ textarea::placeholder{color:#a1a1a6}
   function markRead(cid) {
     var c = chatBy(cid);
     if (c) c.un = 0;
+    fbPut("g/" + cid + "/rd", TS);
     if (readSent[cid] && Date.now() - readSent[cid] < 1500) return;
     readSent[cid] = Date.now();
-    fbPut("g/" + cid + "/rd", TS);
     api({ action: "opPanelRead", cid: cid }).catch(function () {});
   }
   $("back").onclick = function () { $("app").classList.remove("open"); cur = null; $("insp").classList.add("hidden"); history.replaceState(null, "", location.pathname); renderList(); };
@@ -856,8 +875,9 @@ textarea::placeholder{color:#a1a1a6}
     if (on && !confirm("Заблокировать «" + (c ? title(c) : "гостя") + "»?\nЕго сообщения больше не будут приходить — ни сюда, ни в Telegram. Блок по ID телефона (и по номеру, если он известен). Снять можно в любой момент.")) return;
     if (c) c.bl = on ? 1 : 0;
     renderList(); renderHead();
+    var loc = fb.blLocal[cid] = { v: on ? 1 : 0, at: Date.now() + 60e3 }; // до ответа скрипта верим своему нажатию
     fbPut("g/" + cid + "/blk", on ? true : null);
-    api({ action: "opPanelBlock", cid: cid, on: on ? 1 : 0 }).then(function (r) { if (r && r.ok) toast(on ? "Гость заблокирован" : "Гость разблокирован"); else toast("Не получилось — нет связи"); }).catch(function () { toast("Нет связи"); });
+    api({ action: "opPanelBlock", cid: cid, on: on ? 1 : 0 }).finally(function () { loc.at = Date.now(); }).then(function (r) { if (r && r.ok) toast(on ? "Гость заблокирован" : "Гость разблокирован"); else toast("Не получилось — нет связи"); }).catch(function () { toast("Нет связи"); });
   }
   function li(ic, k, v) { return '<div class="li">' + ic + '<span class="k">' + k + '</span><span class="v">' + esc(v) + "</span></div>"; }
   // ── карточка гостя справа (как «Контакты»): телефон, заказы, корзина, что смотрел
