@@ -46,8 +46,10 @@ kbd{font:500 11px/1 -apple-system,BlinkMacSystemFont,"Inter",sans-serif;color:va
 #login .foot{color:var(--sub);font-size:12px;margin-top:6px}
 
 /* ── раскладка */
-.app{display:grid;grid-template-columns:330px minmax(0,1fr) auto;height:100%;height:100dvh}
-.side{display:flex;flex-direction:column;border-right:1px solid var(--sep);min-width:0;background:var(--side)}
+.app{display:grid;grid-template-columns:330px minmax(0,1fr) auto auto;grid-template-rows:minmax(0,1fr);height:100%;height:100dvh;overflow:hidden}
+.app>*{min-height:0}
+html,body{overflow:hidden}
+.side{display:flex;flex-direction:column;border-right:1px solid var(--sep);min-width:0;min-height:0;height:100%;overflow:hidden;background:var(--side)}
 .side-top{padding:16px 16px 6px}
 .brand{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .brand .appic{width:30px;height:30px;border-radius:8px;background:linear-gradient(145deg,#a3193b,#5c0d1f);color:#fff;font-size:16px;font-weight:700;box-shadow:0 2px 6px rgba(122,17,40,.3);display:flex;align-items:center;justify-content:center}
@@ -84,7 +86,7 @@ kbd{font:500 11px/1 -apple-system,BlinkMacSystemFont,"Inter",sans-serif;color:va
 .empty svg{display:block;margin:0 auto 12px;color:#c7c7cc}
 
 /* ── переписка */
-.main{display:flex;flex-direction:column;min-width:0;background:var(--bg);position:relative}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;overflow:hidden;background:var(--bg);position:relative}
 .main-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--sub);text-align:center;padding:24px}
 .main-empty svg{color:#d1d1d6}
 .main-empty b{color:var(--txt);font-size:20px;font-weight:600;letter-spacing:-.02em}
@@ -96,7 +98,7 @@ kbd{font:500 11px/1 -apple-system,BlinkMacSystemFont,"Inter",sans-serif;color:va
 .head .t small{color:var(--sub);font-size:12px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .head .t small.on{color:var(--green)}
 .back{display:none}
-.msgs{flex:1;overflow-y:auto;padding:10px 0 14px;display:flex;flex-direction:column}
+.msgs{flex:1;min-height:0;overflow-y:auto;padding:10px 0 14px;display:flex;flex-direction:column}
 .wrap{width:100%;max-width:780px;margin:0 auto;padding:0 20px;display:flex;flex-direction:column;gap:3px}
 .day{align-self:center;color:var(--sub);font-size:12px;font-weight:600;margin:16px 0 8px}
 .m{display:flex;flex-direction:column;max-width:min(520px,78%);position:relative}
@@ -184,7 +186,7 @@ textarea::placeholder{color:#a1a1a6}
 .send:active{transform:scale(.9)}
 
 /* ── инспектор гостя */
-.insp{width:320px;border-left:1px solid var(--sep);background:var(--side);overflow-y:auto;padding:22px 16px 28px}
+.insp{width:320px;height:100%;min-height:0;border-left:1px solid var(--sep);background:var(--side);overflow-y:auto;padding:22px 16px 28px}
 .insp .who{text-align:center;padding:4px 0 2px}
 .insp .who b{display:block;font-size:19px;font-weight:600;letter-spacing:-.02em;margin-top:12px}
 .insp .who small{display:block;color:var(--sub);font-size:13px;margin-top:2px}
@@ -213,6 +215,10 @@ textarea::placeholder{color:#a1a1a6}
 .insp .none{color:var(--sub);font-size:13px;text-align:center;padding:14px}
 
 /* ── окна (sheet), меню, подсказки */
+.sov.docked{position:static;inset:auto;background:none;padding:0;display:flex;width:390px;height:100%;min-height:0;border-left:1px solid var(--sep);z-index:auto;animation:dockin .22s var(--ease)}
+@keyframes dockin{from{opacity:0;transform:translateX(24px)}}
+.sov.docked .sheet{width:100%;max-height:none;height:100%;border-radius:0;box-shadow:none;animation:none}
+.sov.docked .sh-b{flex:1;min-height:0}
 .sov{position:fixed;inset:0;background:rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;z-index:70;padding:16px;animation:fade .2s ease}
 @keyframes fade{from{opacity:0}}
 .sheet.wide{width:min(860px,100%)}
@@ -851,6 +857,7 @@ textarea::placeholder{color:#a1a1a6}
   };
 
   function open(cid, fromHash) {
+    if (cur !== cid && $("sov")) closeSheet();
     if (cur !== cid) { thread = threads[cid] || []; closeReply(); stopPlayer(); $("wrap").innerHTML = ""; $("wrap")._html = ""; }
     cur = cid;
     if (!fromHash) history.replaceState(null, "", "#" + encodeURIComponent(cid));
@@ -1178,11 +1185,14 @@ textarea::placeholder{color:#a1a1a6}
   function sheet(o) {
     closeSheet();
     var ov = D.createElement("div"); ov.className = "sov"; ov.id = "sov";
+    var dock = o.dock && innerWidth > 1180;
+    if (dock) ov.classList.add("docked");
+    ov._onClose = o.onClose || null;
     ov.innerHTML = '<div class="sheet" role="dialog" aria-label="' + esc(o.title) + '"><div class="sh-h"><button type="button" data-s="x">' + (o.ok ? "Отмена" : "") + "</button><b>" + esc(o.title) + '</b><button type="button" class="ok" data-s="ok">' + esc(o.ok || "Готово") + '</button></div><div class="sh-b">' + o.body + "</div></div>";
-    D.body.appendChild(ov);
-    ov.addEventListener("mousedown", function (e) { if (e.target === ov) closeSheet(); });
+    if (dock) $("app").insertBefore(ov, $("insp")); else D.body.appendChild(ov);
+    ov.addEventListener("mousedown", function (e) { if (e.target === ov && !dock) closeSheet(); });
     ov.querySelector('[data-s="x"]').onclick = closeSheet;
-    ov.querySelector('[data-s="ok"]').onclick = function () { if (!o.onOk || o.onOk(ov) !== false) closeSheet(); };
+    ov.querySelector('[data-s="ok"]').onclick = function () { if (!o.onOk || o.onOk(ov) !== false) { ov._done = true; closeSheet(); } };
     ov.addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); ov.querySelector('[data-s="ok"]').click(); } });
     if (o.wide) ov.querySelector(".sheet").classList.add("wide");
     sheetCancel = o.onCancel || null;
@@ -1199,7 +1209,12 @@ textarea::placeholder{color:#a1a1a6}
     return ov;
   }
   var sheetCancel = null;
-  function closeSheet() { var s = $("sov"); if (s) s.remove(); }
+  // закрыли окно любым способом (Отмена, Esc, другой чат) — даём сохранить черновик
+  function closeSheet() { var s = $("sov"); if (!s) return; if (s._onClose && !s._done) { try { s._onClose(s); } catch (e) {} } s.remove(); }
+  // черновики «Собрать заказ / бронь» — для каждого гостя свои, переживают перезагрузку
+  var drafts = {};
+  try { drafts = JSON.parse(localStorage.getItem("op_drafts") || "{}") || {}; } catch (e) { drafts = {}; }
+  function draftSave(k, v) { if (v) drafts[k] = v; else delete drafts[k]; try { localStorage.setItem("op_drafts", JSON.stringify(drafts)); } catch (e) {} }
   function segHtml(n, opts, v) { return '<div class="seg" data-n="' + n + '">' + opts.map(function (o) { return '<button type="button" data-v="' + o[0] + '"' + (o[0] === v ? ' class="on"' : "") + ">" + o[1] + "</button>"; }).join("") + "</div>"; }
   function stepHtml(n, v, lo, hi) { return '<div class="step" data-n="' + n + '" data-min="' + lo + '" data-max="' + hi + '"><button type="button" data-d="-1">−</button><span>' + v + '</span><button type="button" data-d="1">+</button></div>'; }
   function vals(ov) {
@@ -1221,10 +1236,11 @@ textarea::placeholder{color:#a1a1a6}
   // ── собрать заказ за гостя: он получит анкету и сам отправит её в WhatsApp
   function orderSheet(pre) {
     if (!cur) return toast("Сначала откройте чат");
-    var c = chatBy(cur) || {}, x = (gx[cur] || {}).ctx || {}, v = pre || {};
+    var dk = cur + ":order";
+    var c = chatBy(cur) || {}, x = (gx[cur] || {}).ctx || {}, v = pre || drafts[dk] || {};
     var items = v.items != null ? v.items : (x.cart || []).map(function (i) { return i[0] + (i[1] > 1 ? " ×" + i[1] : ""); }).join(", ");
     var mode = v.mode || "d";
-    sheet({ title: "Собрать заказ", ok: "Отправить", body:
+    sheet({ title: "Собрать заказ", ok: "Отправить", dock: true, onClose: function (ov) { draftSave(dk, vals(ov)); }, body:
       '<div class="gh">Состав</div><div class="grp"><div class="f"><textarea data-n="items" autofocus placeholder="маргарита, кола 2, фри">' + esc(items) + '</textarea></div><div class="li btn" data-act="pick">' + ICO.fork + "Выбрать из меню</div></div>" +
       '<div class="hint">Через запятую, количество — числом: «кола 2». Цены гость увидит свои, из меню своего филиала.</div>' +
       '<div class="gh">Получение</div><div class="grp"><div class="f">' + segHtml("mode", [["d", "Доставка"], ["s", "Самовывоз"]], mode) + "</div>" +
@@ -1248,6 +1264,7 @@ textarea::placeholder{color:#a1a1a6}
       onOk: function (ov) {
         var d = vals(ov);
         if (!d.items) { shake(ov); return false; }
+        draftSave(dk, null);
         var t = "/заказ " + d.items.replace(/\s*\n+\s*/g, ", ");
         if (d.mode === "s") t += "\nсамовывоз" + (d.time ? " " + d.time : ""); else if (d.addr) t += "\nадрес: " + d.addr;
         t += "\nоплата: " + (d.pay === "cash" ? "наличные" : "kaspi");
@@ -1263,9 +1280,10 @@ textarea::placeholder{color:#a1a1a6}
   function isoDay(add) { var d = new Date(Date.now() + (add || 0) * 864e5); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
   function bookSheet(pre) {
     if (!cur) return toast("Сначала откройте чат");
-    var c = chatBy(cur) || {}, x = (gx[cur] || {}).ctx || {}, v = pre || {};
+    var dk = cur + ":book";
+    var c = chatBy(cur) || {}, x = (gx[cur] || {}).ctx || {}, v = pre || drafts[dk] || {};
     var br = v.br || (BR[c.br] ? c.br : BR[x.br] ? x.br : "samal");
-    sheet({ title: "Собрать бронь", ok: "Отправить", body:
+    sheet({ title: "Собрать бронь", ok: "Отправить", dock: true, onClose: function (ov) { draftSave(dk, vals(ov)); }, body:
       '<div class="gh">Когда</div><div class="grp"><div class="f"><label>Дата</label><input data-n="date" type="date" min="' + isoDay(0) + '" value="' + esc(v.date || isoDay(0)) + '"></div>' +
       '<div class="f"><label>Время</label><input data-n="time" type="time" autofocus value="' + esc(v.time || "19:00") + '"></div>' +
       '<div class="f"><label>Гостей</label>' + stepHtml("g", v.g || 2, 1, 30) + "</div></div>" +
@@ -1277,6 +1295,7 @@ textarea::placeholder{color:#a1a1a6}
       onOk: function (ov) {
         var d = vals(ov);
         if (!d.date || !d.time) { shake(ov); return false; }
+        draftSave(dk, null);
         var p2 = d.date.split("-"), t = "/бронь " + p2[2] + "." + p2[1] + "." + p2[0] + " " + d.time + " на " + d.g + ", " + { samal: "самал", skoro: "скоро", abulhair: "абулхаир" }[d.br];
         if (d.name) t += ", имя " + d.name.split(/\s+/)[0];
         if (d.phone) t += ", тел " + d.phone;
