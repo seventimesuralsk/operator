@@ -716,7 +716,7 @@ textarea::placeholder{color:#a1a1a6}
         if (my !== loopId) return;
         if (r && r.auth === false) { logoutLocal(); return showLogin("Вход истёк — войдите снова"); }
         if (r && r.ok) {
-          fails = 0; lastOkAt = Date.now(); conn(true, r.tg); handle(r, reqCid);
+          fails = 0; lastOkAt = Date.now(); conn(true, r.tg); handle(r, reqCid, sentAt);
           // сервер не смог подождать (занято) — не долбим его по кругу
           if (v0 && ver === v0 && Date.now() - sentAt < 1200) await nap(1500);
           continue;
@@ -737,8 +737,8 @@ textarea::placeholder{color:#a1a1a6}
   }
   function refresh() {
     // мгновенно подтянуть открытый чат (не дожидаясь «длинного» запроса)
-    var reqCid = cur;
-    return api({ action: "opPanel", cid: reqCid }, 25000).then(function (r) { if (r && r.ok) handle(r, reqCid); }).catch(function () {});
+    var reqCid = cur, sentAt = Date.now();
+    return api({ action: "opPanel", cid: reqCid }, 25000).then(function (r) { if (r && r.ok) handle(r, reqCid, sentAt); }).catch(function () {});
   }
 
   var hidden = {};
@@ -787,8 +787,18 @@ textarea::placeholder{color:#a1a1a6}
     best.all = BR_OK.map(function (b) { return { id: b[0], name: b[1], d: km(xy, BR_XY[b[0]]) }; });
     return best;
   }
-  function handle(r, reqCid) {
+  // блок/разблок только что нажат: ответ на запрос, ушедший раньше, чем скрипт подтвердил нажатие,
+  // ещё не знает о нём — не даём ему вернуть старую кнопку и статус
+  function blKeep(list, sentAt) {
+    var now = Date.now();
+    list.forEach(function (c) {
+      var loc = c && fb.blLocal[c.cid];
+      if (loc && (c.bl ? 1 : 0) !== loc.v && (sentAt ? sentAt < loc.at : now - loc.at < 3000)) c.bl = loc.v;
+    });
+  }
+  function handle(r, reqCid, sentAt) {
     if (r.ver) ver = Math.max(ver, r.ver);
+    blKeep(r.chats || [], sentAt);
     if (reqCid && r.guest) gx[reqCid] = r.guest;
     if (reqCid && r.prof && !profSaving[reqCid]) prof[reqCid] = r.prof;
     chats = fbOverlay(fbKeepChats(visibleChats(r.chats)));
