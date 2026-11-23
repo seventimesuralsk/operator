@@ -977,5 +977,12 @@ function admToggleStop(e){apiGet({action:"toggleStop",branch:admBranch,id:e},fun
 !function(){closeAdm=function(){location.reload()};function go(){openAdm()}
  onReady(go)}();
 </script>
- </body>
+ <script>/* Админка заблокирована навсегда → поля и кнопка мёртвые на любом устройстве */
+!function(){function off(){["admlogin","admcode","admsecret","admLoginBtn"].forEach(function(id){var e=document.getElementById(id);if(e){e.disabled=true;e.readOnly=true;e.value="";e.placeholder="";e.style.opacity=".35";e.style.pointerEvents="none"}});var t=document.getElementById("admerr");t&&(t.textContent="");var f=document.getElementById("adm-login");f&&f.setAttribute("aria-disabled","true")}
+function ask(){try{fetch(API+"?action=adminState&t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(d){d&&d.locked&&off()}).catch(function(){})}catch(e){}}
+var _o=window.openAdm;window.openAdm=function(){var r=_o.apply(this,arguments);ask();return r};
+var _f=window.fetch;window.fetch=function(u,o){var p=_f.apply(this,arguments);try{if(o&&typeof o.body=="string"&&o.body.indexOf('"adminLogin"')>=0)p.then(function(r){return r.clone().json()}).then(function(d){d&&d.locked&&off()}).catch(function(){})}catch(e){}return p};
+document.addEventListener("submit",function(e){var f=document.getElementById("adm-login");if(f&&f.getAttribute("aria-disabled")==="true"){e.preventDefault();e.stopPropagation()}},true);
+}();</script>
+</body>
 </html>
